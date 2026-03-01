@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
+import datetime as dt
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -103,8 +104,30 @@ def match_score(customer: dict, vehicle: dict) -> float:
     else:
         upg_ts = pd.to_datetime(upg, errors="coerce")
     u_score = upgrade_timing_score(upg_ts)
-    score = model_match * 0.30 + b_fit * 0.25 + c_match * 0.20 + 50 * 0.15 + u_score * 0.10
-    return min(100, round(score, 1))
+    base = model_match * 0.30 + b_fit * 0.25 + c_match * 0.20 + 50 * 0.15 + u_score * 0.10
+    price_prox = 0
+    if budget > 0 and listed > 0:
+        ratio = listed / budget
+        if ratio <= 0.95:
+            price_prox = 5
+        elif ratio <= 1.0:
+            price_prox = 3
+        elif ratio <= 1.05:
+            price_prox = 0
+        else:
+            price_prox = -2
+    year_bonus = 0
+    v_year = vehicle.get("year")
+    if v_year and isinstance(v_year, (int, float)):
+        curr = dt.datetime.now().year
+        if v_year >= curr - 2:
+            year_bonus = 2
+        elif v_year >= curr - 4:
+            year_bonus = 0
+        else:
+            year_bonus = -1
+    score = base + price_prox + year_bonus
+    return min(100, max(0, round(score, 1)))
 
 
 def get_matches_for_buyer(customer_id: int, top_n: int = 5):

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getMatchDashboard } from '../api'
 
 type Match = { vehicle_id: number; make: string; model: string; list_price_qar: number; match_score: number }
@@ -17,17 +17,13 @@ function CircleScore({ score, size = 56 }: { score: number; size?: number }) {
 }
 
 export default function BuyerMatcher() {
-  const [rows, setRows] = useState<BuyerRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: rows, isLoading: loading } = useQuery<BuyerRow[]>({
+    queryKey: ['match', 'dashboard', 3],
+    queryFn: () => getMatchDashboard(3),
+  })
+  const rowList = rows ?? []
 
-  useEffect(() => {
-    getMatchDashboard(3)
-      .then(setRows)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) return <div className="card">Loading…</div>
+  if (loading && rowList.length === 0) return <div className="card">Loading…</div>
 
   return (
     <div>
@@ -37,8 +33,8 @@ export default function BuyerMatcher() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {rows.length === 0 && <div className="card">No ready buyers in the current window.</div>}
-        {rows.map((row, i) => {
+        {rowList.length === 0 && <div className="card">No ready buyers in the current window.</div>}
+        {rowList.map((row: BuyerRow, i: number) => {
           const cust = row.customer as { name?: string; lifetime_value_qar?: number; preferred_body_type?: string; preferred_color?: string; next_upgrade_prediction?: string; nationality?: string }
           const upgrade = cust.next_upgrade_prediction ?? ''
           const isReady = /now|0\s*day|ready/i.test(upgrade)
@@ -57,7 +53,7 @@ export default function BuyerMatcher() {
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 8 }}>Budget ~QAR {(cust.lifetime_value_qar ?? 0).toLocaleString()} · Prefers {cust.preferred_body_type ?? '—'} / {cust.preferred_color ?? '—'} · Upgrade: {upgrade || '—'}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {row.top_matches?.map((m) => (
+                  {row.top_matches?.map((m: Match) => (
                     <div key={m.vehicle_id} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }}>
                       {m.make} {m.model} — QAR {Number(m.list_price_qar).toLocaleString()} — <strong style={{ color: 'var(--gold)' }}>{m.match_score}%</strong>
                     </div>

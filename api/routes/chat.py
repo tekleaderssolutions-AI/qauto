@@ -1,12 +1,15 @@
 """POST /api/chat — LLM conversation (Ollama) with context from datasets."""
 import sys
 from pathlib import Path
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import text
+from fastapi import Request
+from api.limiter import limiter
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
-from db import get_engine, is_postgres
+from db import get_engine
 from api.schemas import ChatRequest, ChatResponse
 from ml.market_analyzer import compute_scores, generate_briefing
 
@@ -16,29 +19,23 @@ router = APIRouter(prefix="/api", tags=["chat"])
 
 
 def get_db_context(limit_per_table: int = 50) -> str:
-    """Build a short context string from DB for LLM (PostgreSQL or SQLite)."""
+    """Build a short context string from DB for LLM (PostgreSQL)."""
     try:
         engine = get_engine()
     except Exception:
         return "No database loaded."
     with engine.connect() as conn:
-        if is_postgres():
-            tables = [r[0] for r in conn.execute(text(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
-            )).fetchall()]
-        else:
-            tables = [r[0] for r in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")).fetchall()]
+        tables = [r[0] for r in conn.execute(text(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+        )).fetchall()]
     parts = []
     for t in tables:
         try:
             with engine.connect() as conn:
                 rows = conn.execute(text(f'SELECT * FROM "{t}" LIMIT :lim'), {"lim": limit_per_table}).fetchall()
-                if is_postgres():
-                    cols = [r[0] for r in conn.execute(text(
-                        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = :t"
-                    ), {"t": t}).fetchall()]
-                else:
-                    cols = [r[1] for r in conn.execute(text(f"PRAGMA table_info([{t}])")).fetchall()]
+                cols = [r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = :t"
+                ), {"t": t}).fetchall()]
                 if rows and cols:
                     parts.append(f"[{t}] columns: {', '.join(cols)}. Sample row count: {len(rows)}.")
         except Exception:
@@ -47,7 +44,16 @@ def get_db_context(limit_per_table: int = 50) -> str:
 
 
 def call_ollama(prompt: str, system: str) -> str:
-    """Call Ollama API if available; else return rule-based reply."""
+    """Call Groq if GROQ_API_KEY set, else Ollama; else rule-based reply."""
+    try:
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from llm.groq_client import generate as groq_gen
+        out = groq_gen(prompt, system=system, max_tokens=256)
+        if out:
+            return out
+    except Exception:
+        pass
     try:
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
@@ -65,8 +71,34 @@ def call_ollama(prompt: str, system: str) -> str:
     )
 
 
+@router.get("/chat/stream")
+async def chat_stream(message: str = Query(..., min_length=1)):
+    """SSE streaming endpoint — use GET /api/chat/stream?message=... for EventSource."""
+    system_path = LLM_DIR / "system_prompt.txt"
+    system = system_path.read_text(encoding="utf-8", errors="replace") if system_path.exists() else "You are QAUTO-AI, Qatar used car market advisor."
+    context = get_db_context(limit_per_table=30)
+    try:
+        top_models = compute_scores(limit=5)
+        if top_models:
+            signals = "; ".join(f"{m['make']} {m['model']} ({m['demand_confidence_score']:.0f}/100)" for m in top_models)
+            market_brief = generate_briefing(top_n=5)
+            extra = f"\n\nLatest market demand signals: {signals}.\nBriefing: {market_brief}"
+        else:
+            extra = ""
+    except Exception:
+        extra = ""
+    prompt = f"Context from datasets:\n{context}{extra}\n\nUser question: {message}\n\nAnswer briefly and with specific numbers if available."
+    from llm.ollama_stream import stream_ollama
+    return StreamingResponse(
+        stream_ollama(prompt, system=system),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+@limiter.limit("10/minute")
+def chat(req: ChatRequest, request: Request):
     system_path = LLM_DIR / "system_prompt.txt"
     system = system_path.read_text(encoding="utf-8", errors="replace") if system_path.exists() else "You are QAUTO-AI, Qatar used car market advisor."
     context = get_db_context(limit_per_table=30)

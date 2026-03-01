@@ -252,6 +252,51 @@ def generate_briefing(top_n: int = 5) -> str:
         return base_text
 
 
-if __name__ == "__main__":
-    print(generate_briefing(5))
+CHART_KEYS = ["lc300", "lx600", "prado", "patrol"]
+
+
+def get_trend_series(top_n: int = 4, weeks: int = 5) -> List[Dict[str, Any]]:
+    """
+    Return weekly trend index for top N models for charting.
+    Keys: lc300, lx600, prado, patrol (or positional fallback).
+    """
+    gtr = _safe_read("SELECT * FROM google_trends__model_weekly_pivot")
+    if gtr.empty:
+        return []
+    if "model_key" not in gtr.columns and {"brand", "model"}.issubset(gtr.columns):
+        gtr = gtr.copy()
+        gtr["model_key"] = gtr["brand"].astype(str) + MODEL_KEY_SEP + gtr["model"].astype(str)
+    id_cols = [c for c in ["brand", "model", "model_key"] if c in gtr.columns]
+    value_cols = [c for c in gtr.columns if c not in id_cols]
+    if not value_cols:
+        return []
+    melted = gtr.melt(id_vars=id_cols, value_vars=value_cols, var_name="week", value_name="trend_index")
+    if "model_key" not in melted.columns:
+        melted["model_key"] = melted["brand"].astype(str) + MODEL_KEY_SEP + melted["model"].astype(str)
+    top = melted.groupby("model_key")["trend_index"].mean().sort_values(ascending=False).head(top_n)
+    week_order = sorted(melted["week"].unique(), key=lambda w: (str(w)[:4], str(w)))[-weeks:]
+    out = []
+    for i, wk in enumerate(week_order):
+        row: Dict[str, Any] = {"week": f"W{i+1}"}
+        for j, (mk, _) in enumerate(top.items()):
+            key = CHART_KEYS[j] if j < len(CHART_KEYS) else f"m{j}"
+            val = melted[(melted["week"] == wk) & (melted["model_key"] == mk)]["trend_index"].mean()
+            row[key] = round(float(val), 0) if pd.notna(val) else 0
+        out.append(row)
+    return out
+
+
+def get_sentiment_by_brand() -> List[Dict[str, Any]]:
+    """Return brand-level sentiment for charting."""
+    sm = _safe_read("SELECT * FROM social_media_trends__model_ranking")
+    if sm.empty:
+        return []
+    brand_col = "brand" if "brand" in sm.columns else "make"
+    if brand_col not in sm.columns:
+        return []
+    score_col = "avg_sentiment" if "avg_sentiment" in sm.columns else "sentiment_score"
+    if score_col not in sm.columns:
+        return []
+    agg = sm.groupby(brand_col)[score_col].mean().sort_values(ascending=False).head(8)
+    return [{"brand": k, "score": round(float(v) * 100 if v <= 1 else float(v), 0)} for k, v in agg.items()]
 

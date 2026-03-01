@@ -1,40 +1,51 @@
-import { useEffect, useState } from 'react'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { getMarketKpis, getMarketEvents } from '../api'
+import { useQueries } from '@tanstack/react-query'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { getMarketKpis, getMarketEvents, getMarketTrends, getMarketTrendSeries, getMarketSentiment, getMarketAnalysis } from '../api'
 
 const gridStyle = { stroke: 'rgba(255,255,255,0.04)' }
 const tooltipStyle = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }
-
-const TREND_DATA = [
-  { week: 'W1', lc300: 72, lx600: 58, prado: 65, patrol: 48 },
-  { week: 'W2', lc300: 78, lx600: 62, prado: 68, patrol: 52 },
-  { week: 'W3', lc300: 85, lx600: 65, prado: 70, patrol: 55 },
-  { week: 'W4', lc300: 94, lx600: 68, prado: 72, patrol: 58 },
-  { week: 'W5', lc300: 88, lx600: 70, prado: 75, patrol: 60 },
-]
-const SENTIMENT = [
-  { brand: 'Toyota', score: 92 },
-  { brand: 'Nissan', score: 78 },
-  { brand: 'Lexus', score: 88 },
-  { brand: 'Land Rover', score: 72 },
-]
+const COLORS = ['var(--gold)', 'var(--blue)', 'var(--green)', 'var(--purple)']
 
 export default function MarketTrends() {
-  const [kpis, setKpis] = useState<Record<string, number>>({})
-  const [events, setEvents] = useState<Array<{ event_name: string; start_date: string; end_date: string; demand_multiplier: number }>>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    Promise.all([getMarketKpis(), getMarketEvents(12)])
-      .then(([k, e]) => {
-        setKpis(k)
-        setEvents(e ?? [])
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  const [kpisQ, eventsQ, trendsQ, trendSeriesQ, sentimentQ, analysisQ] = useQueries({
+    queries: [
+      { queryKey: ['market', 'kpis'], queryFn: getMarketKpis },
+      { queryKey: ['market', 'events', 10], queryFn: () => getMarketEvents(10) },
+      { queryKey: ['market', 'trends'], queryFn: getMarketTrends },
+      { queryKey: ['market', 'trend-series'], queryFn: () => getMarketTrendSeries(5) },
+      { queryKey: ['market', 'sentiment'], queryFn: getMarketSentiment },
+      { queryKey: ['market', 'analysis'], queryFn: () => getMarketAnalysis(10) },
+    ],
+  })
+  const loading = kpisQ.isLoading && !kpisQ.data
+  const backendOffline = kpisQ.isError && !kpisQ.data
+  const kpis = (kpisQ.data || {}) as Record<string, number>
+  const events = (eventsQ.data ?? []) as Array<{ event_name: string; start_date: string; end_date: string; demand_multiplier: number }>
+  const monthlyTrends = (trendsQ.data ?? { months: [], volumes: [] }) as { months: string[]; volumes: number[] }
+  const trendChartData = (trendSeriesQ.data ?? []) as Array<Record<string, unknown>>
+  const sentimentData = (sentimentQ.data ?? []) as Array<{ brand: string; score: number }>
+  const models = ((analysisQ.data as { models?: Array<{ make: string; model: string; trend_score: number; is_rising_3w: boolean }> })?.models ?? [])
+  const trendSummaries = models.slice(0, 4).map((m, i) => ({
+    label: `${m.make} ${m.model}`,
+    value: `↑ ${Math.round(m.trend_score)}`,
+    sub: m.is_rising_3w ? 'Rising 4 weeks' : 'Stable',
+    color: COLORS[i % COLORS.length],
+  }))
+  const monthlyChartData = monthlyTrends.months?.length
+    ? monthlyTrends.months.map((m, i) => ({ month: m || '', volume: monthlyTrends.volumes?.[i] ?? 0 }))
+    : []
 
   if (loading) return <div className="card">Loading…</div>
+  if (backendOffline) {
+    return (
+      <div className="card" style={{ padding: 32, textAlign: 'center', maxWidth: 520, margin: '24px auto' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: 8 }}>Backend is not running</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Start the API to see trends. Run from project root: <code style={{ background: 'var(--bg)', padding: 2, borderRadius: 4 }}>uvicorn api.main:app --reload --port 8000</code></div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Then run ETL once: <code style={{ background: 'var(--bg)', padding: 2, borderRadius: 4 }}>python etl/load_data.py</code></div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -46,8 +57,11 @@ export default function MarketTrends() {
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Google Trends — Top 4 models (index)</div>
         <div style={{ height: 220 }}>
+          {trendChartData.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No Google Trends pivot data. Load <code>google_trends__model_weekly_pivot</code> via ETL.</div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={TREND_DATA}>
+            <LineChart data={trendChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
               <XAxis dataKey="week" stroke="#475569" tick={{ fontSize: 11 }} />
               <YAxis stroke="#475569" tick={{ fontSize: 11 }} domain={[0, 100]} />
@@ -58,16 +72,29 @@ export default function MarketTrends() {
               <Line type="monotone" dataKey="patrol" stroke="#a78bfa" strokeWidth={2} name="Nissan Patrol" dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
 
+      {monthlyChartData.length > 0 && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Monthly new car registrations (region)</div>
+          <div style={{ height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
+                <XAxis dataKey="month" stroke="#475569" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#475569" tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area type="monotone" dataKey="volume" stroke="var(--gold)" fill="rgba(245,158,11,0.2)" strokeWidth={2} name="Registrations" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-        {[
-          { label: 'Land Cruiser 300', value: '↑ 94', sub: 'Rising 4 weeks', color: 'var(--gold)' },
-          { label: 'Lexus LX 600', value: '↑ 70', sub: 'Stable', color: 'var(--blue)' },
-          { label: 'Prado GXR', value: '↑ 75', sub: 'Peak interest', color: 'var(--green)' },
-          { label: 'Nissan Patrol', value: '↑ 60', sub: 'Growing', color: 'var(--purple)' },
-        ].map((t, i) => (
+        {trendSummaries.map((t, i) => (
           <div key={i} className="card" style={{ borderLeft: `4px solid ${t.color}` }}>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{t.label}</div>
             <div style={{ fontSize: 20, fontWeight: 900, color: t.color }}>{t.value}</div>
@@ -79,8 +106,8 @@ export default function MarketTrends() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Oil price tracker</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: (kpis.oil_price_usd ?? 0) > 85 ? 'var(--green)' : 'var(--gold)' }}>${kpis.oil_price_usd ?? 88}/bbl</div>
-          <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>{(kpis.oil_price_usd ?? 0) > 85 ? 'Above $85 — fleet demand signal' : 'Below peak'}</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: (kpis.oil_price_usd ?? 0) > 85 ? 'var(--green)' : 'var(--gold)' }}>${kpis.oil_price_usd ?? '—'}/bbl</div>
+          <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>{kpis.oil_price_usd != null ? ((kpis.oil_price_usd > 85) ? 'Above $85 — fleet demand signal' : 'Below peak') : 'No data'}</div>
         </div>
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Upcoming events</div>
@@ -96,8 +123,11 @@ export default function MarketTrends() {
       <div className="card">
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Social media sentiment by brand</div>
         <div style={{ height: 200 }}>
+          {sentimentData.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No sentiment data from API</div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={SENTIMENT} margin={{ left: 8, right: 8 }}>
+            <BarChart data={sentimentData} margin={{ left: 8, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} horizontal={false} />
               <XAxis dataKey="brand" stroke="#475569" tick={{ fontSize: 11 }} />
               <YAxis stroke="#475569" domain={[0, 100]} tick={{ fontSize: 11 }} />
@@ -105,6 +135,7 @@ export default function MarketTrends() {
               <Bar dataKey="score" radius={[4, 4, 0, 0]} fill="var(--gold)" name="Sentiment score" />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

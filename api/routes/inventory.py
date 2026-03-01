@@ -5,16 +5,19 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from ml.risk_scorer import score_inventory, get_risk_summary
+from api.cache import cache
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
 
 @router.get("/inventory/summary")
+@cache(ttl=300, key_prefix="inventory")
 def inventory_summary():
     return get_risk_summary()
 
 
 @router.get("/inventory")
+@cache(ttl=300, key_prefix="inventory")
 def get_inventory(
     risk_flag: Optional[str] = None,
     body_type: Optional[str] = None,

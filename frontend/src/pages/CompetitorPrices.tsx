@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getCompetitors } from '../api'
 
 type Item = {
@@ -39,28 +40,20 @@ const SORTS = [
 ]
 
 export default function CompetitorPrices() {
-  const [items, setItems] = useState<Item[]>([])
-  const [platformSummary, setPlatformSummary] = useState<Record<string, { count: number; avg_price: number }>>({})
   const [modelFilter, setModelFilter] = useState('All')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('gap')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    getCompetitors({
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['competitors', modelFilter, search, sort],
+    queryFn: () => getCompetitors({
       model_filter: modelFilter === 'All' ? undefined : modelFilter,
       search: search || undefined,
       sort,
       limit: 100,
-    })
-      .then((res: { items: Item[]; platform_summary?: Record<string, { count: number; avg_price: number }> }) => {
-        setItems(res.items ?? [])
-        setPlatformSummary(res.platform_summary ?? {})
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [modelFilter, search, sort])
+    }),
+  })
+  const items = (data as { items?: Item[] } | undefined)?.items ?? []
+  const platformSummary = (data as { platform_summary?: Record<string, { count: number; avg_price: number }> } | undefined)?.platform_summary ?? {}
 
   const priceAlert = items.some((i) => i.gap > 15000)
   const staleCount = items.filter((i) => (i.days_listed ?? 0) >= 45).length

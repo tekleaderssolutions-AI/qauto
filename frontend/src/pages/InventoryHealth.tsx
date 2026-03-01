@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getInventory, getInventorySummary } from '../api'
 
 const COLOR_HEX: Record<string, string> = {
@@ -40,23 +41,16 @@ type Item = {
 }
 
 export default function InventoryHealth() {
-  const [items, setItems] = useState<Item[]>([])
-  const [total, setTotal] = useState(0)
-  const [summary, setSummary] = useState<Record<string, number>>({})
   const [filter, setFilter] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    getInventorySummary().then(setSummary).catch(console.error)
-  }, [])
-
-  useEffect(() => {
-    setLoading(true)
-    getInventory({ risk_flag: filter ?? undefined, limit: 100 }).then((res: { items: Item[]; total: number }) => {
-      setItems(res.items ?? [])
-      setTotal(res.total ?? 0)
-    }).catch(console.error).finally(() => setLoading(false))
-  }, [filter])
+  const summaryQ = useQuery({ queryKey: ['inventory', 'summary'], queryFn: getInventorySummary })
+  const listQ = useQuery({
+    queryKey: ['inventory', 'list', filter ?? 'all'],
+    queryFn: () => getInventory({ risk_flag: filter ?? undefined, limit: 100 }),
+  })
+  const summary = (summaryQ.data || {}) as Record<string, number>
+  const items = (listQ.data as { items?: Item[]; total?: number } | undefined)?.items ?? []
+  const total = (listQ.data as { total?: number } | undefined)?.total ?? 0
+  const loading = listQ.isLoading
 
   const totalCount = (summary.healthy ?? 0) + (summary.monitor ?? 0) + (summary.at_risk ?? 0) + (summary.critical ?? 0) || 1
   const riskBars = [

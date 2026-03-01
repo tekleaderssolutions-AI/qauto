@@ -8,6 +8,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 from db import get_engine
+from api.cache import cache
 
 router = APIRouter(prefix="/api", tags=["competitors"])
 
@@ -22,6 +23,7 @@ def _py(v: Any):
 
 
 @router.get("/competitors")
+@cache(ttl=300, key_prefix="competitors")
 def get_competitors(
     model_filter: Optional[str] = Query(None, description="Filter by model name"),
     search: Optional[str] = Query(None, description="Search model or platform"),

@@ -1,20 +1,23 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, NavLink } from 'react-router-dom'
-import MarketHub from './pages/MarketHub'
-import InventoryHealth from './pages/InventoryHealth'
-import PricingTool from './pages/PricingTool'
-import MarketTrends from './pages/MarketTrends'
-import BuyerMatcher from './pages/BuyerMatcher'
-import AIAdvisor from './pages/AIAdvisor'
-import CompetitorPrices from './pages/CompetitorPrices'
+import DashboardSkeleton from './components/ui/DashboardSkeleton'
+
+const MarketHub = lazy(() => import('./pages/MarketHub'))
+const InventoryHealth = lazy(() => import('./pages/InventoryHealth'))
+const PricingTool = lazy(() => import('./pages/PricingTool'))
+const MarketTrends = lazy(() => import('./pages/MarketTrends'))
+const BuyerMatcher = lazy(() => import('./pages/BuyerMatcher'))
+const AIAdvisor = lazy(() => import('./pages/AIAdvisor'))
+const CompetitorPrices = lazy(() => import('./pages/CompetitorPrices'))
 
 const nav = [
-  { to: '/', label: 'Market Hub', icon: '📊' },
-  { to: '/inventory', label: 'Inventory', icon: '🏪' },
-  { to: '/pricing', label: 'Pricing Tool', icon: '💰' },
-  { to: '/competitors', label: 'Competitors', icon: '⚔️' },
-  { to: '/trends', label: 'Trends', icon: '📈' },
-  { to: '/matching', label: 'Buyer Matcher', icon: '🤝' },
-  { to: '/chat', label: 'AI Advisor', icon: '🤖' },
+  { to: '/', label: 'Market Hub' },
+  { to: '/inventory', label: 'Inventory' },
+  { to: '/pricing', label: 'Pricing Tool' },
+  { to: '/competitors', label: 'Competitors' },
+  { to: '/trends', label: 'Trends' },
+  { to: '/matching', label: 'Buyer Matcher' },
+  { to: '/chat', label: 'AI Advisor' },
 ]
 
 export default function App() {
@@ -51,7 +54,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 3, flex: 1, justifyContent: 'center' }}>
-          {nav.map(({ to, label, icon }) => (
+          {nav.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -67,7 +70,6 @@ export default function App() {
                 textDecoration: 'none',
               })}
             >
-              <span style={{ marginRight: 4 }}>{icon}</span>
               {label}
             </NavLink>
           ))}
@@ -87,15 +89,17 @@ export default function App() {
       </div>
 
       <div style={{ padding: '22px 24px' }}>
-        <Routes>
-          <Route path="/" element={<MarketHub />} />
-          <Route path="/inventory" element={<InventoryHealth />} />
-          <Route path="/pricing" element={<PricingTool />} />
-          <Route path="/competitors" element={<CompetitorPrices />} />
-          <Route path="/trends" element={<MarketTrends />} />
-          <Route path="/matching" element={<BuyerMatcher />} />
-          <Route path="/chat" element={<AIAdvisor />} />
-        </Routes>
+        <Suspense fallback={<DashboardSkeleton />}>
+          <Routes>
+            <Route path="/" element={<MarketHub />} />
+            <Route path="/inventory" element={<InventoryHealth />} />
+            <Route path="/pricing" element={<PricingTool />} />
+            <Route path="/competitors" element={<CompetitorPrices />} />
+            <Route path="/trends" element={<MarketTrends />} />
+            <Route path="/matching" element={<BuyerMatcher />} />
+            <Route path="/chat" element={<AIAdvisor />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   )

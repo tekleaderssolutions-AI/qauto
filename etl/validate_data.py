@@ -1,6 +1,5 @@
 """
-Qatar AI Platform - Data validation. Checks row counts and key columns.
-Works with PostgreSQL and SQLite.
+Qatar AI Platform - Data validation. Checks row counts and key columns (PostgreSQL).
 """
 import sys
 from pathlib import Path
@@ -8,7 +7,7 @@ from sqlalchemy import text
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from db import get_engine, is_postgres
+from db import get_engine
 
 EXPECTED_TABLES = {
     "vehicle_inventory": ["vehicle_id", "make", "model", "list_price_qar", "days_in_stock", "risk_score", "risk_flag"],
@@ -28,12 +27,9 @@ def validate():
     engine = get_engine()
     try:
         with engine.connect() as conn:
-            if is_postgres():
-                result = conn.execute(text(
-                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
-                ))
-            else:
-                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"))
+            result = conn.execute(text(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+            ))
             tables = [row[0] for row in result]
     except Exception as e:
         print(f"Database connection failed: {e}")
@@ -48,13 +44,10 @@ def validate():
         with engine.connect() as conn:
             n = conn.execute(text(f'SELECT COUNT(*) FROM "{table}"')).scalar()
             if key_cols:
-                if is_postgres():
-                    result = conn.execute(text(
-                        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = :t"
-                    ), {"t": table})
-                else:
-                    result = conn.execute(text(f"PRAGMA table_info([{table}])"))
-                cols = [row[1] if not is_postgres() else row[0] for row in result]
+                result = conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = :t"
+                ), {"t": table})
+                cols = [row[0] for row in result]
                 missing = [c for c in key_cols if c not in cols]
                 if missing:
                     print(f"  {table}: missing columns {missing} (rows={n})")

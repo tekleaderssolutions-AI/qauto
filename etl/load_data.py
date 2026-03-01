@@ -1,7 +1,6 @@
 """
-Qatar AI Platform - ETL: Load Excel/CSV files to PostgreSQL (or SQLite).
-Supports all 10 datasets from the platform blueprint.
-Set DATABASE_URL for PostgreSQL; otherwise uses sqlite:///qauto.db.
+Qatar AI Platform - ETL: Load Excel/CSV files to PostgreSQL.
+Set DATABASE_URL or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME.
 """
 import sys
 from pathlib import Path
@@ -9,7 +8,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from db import get_engine, is_postgres
+from db import get_engine
 
 DATA_DIR = ROOT / "Data"
 
@@ -66,22 +65,15 @@ def load_file(table_name: str, base_name: str, sheet_name: str | None) -> pd.Dat
 
 
 def run_etl():
-    """Load all datasets into the database (PostgreSQL or SQLite)."""
+    """Load all datasets into PostgreSQL."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     engine = get_engine()
-    use_postgres = is_postgres()
-    # Postgres has a hard limit on the total number of SQL parameters per statement.
-    # For very wide tables, a large chunksize with method="multi" can exceed this.
-    # Use a smaller chunksize and let SQLAlchemy choose method for Postgres.
-    pg_chunksize = 200
+    chunksize = 200
     loaded = 0
     for table_name, base_name, sheet_name in DATASETS:
         df = load_file(table_name, base_name, sheet_name)
         if df is not None and not df.empty:
-            if use_postgres:
-                df.to_sql(table_name, engine, if_exists="replace", index=False, chunksize=pg_chunksize)
-            else:
-                df.to_sql(table_name, engine, if_exists="replace", index=False, method="multi", chunksize=1000)
+            df.to_sql(table_name, engine, if_exists="replace", index=False, chunksize=chunksize)
             print(f"  Loaded {table_name}: {len(df)} rows")
             loaded += 1
         else:

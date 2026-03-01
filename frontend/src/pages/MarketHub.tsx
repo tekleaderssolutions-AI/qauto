@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { getMarketKpis, getMarketTrends, getInventorySummary } from '../api'
 
@@ -6,19 +6,32 @@ const gridStyle = { stroke: 'rgba(255,255,255,0.04)' }
 const tooltipStyle = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }
 
 export default function MarketHub() {
-  const [kpis, setKpis] = useState<Record<string, number>>({})
-  const [trends, setTrends] = useState<{ months: string[]; volumes: number[] }>({ months: [], volumes: [] })
-  const [summary, setSummary] = useState<Record<string, number>>({})
+  const [kpisQ, trendsQ, summaryQ] = useQueries({
+    queries: [
+      { queryKey: ['market', 'kpis'], queryFn: getMarketKpis },
+      { queryKey: ['market', 'trends'], queryFn: getMarketTrends },
+      { queryKey: ['inventory', 'summary'], queryFn: getInventorySummary },
+    ],
+  })
+  const loading = kpisQ.isLoading || trendsQ.isLoading || summaryQ.isLoading
+  const backendOffline = kpisQ.isError || trendsQ.isError || summaryQ.isError
+  const kpis = (kpisQ.data || {}) as Record<string, number>
+  const trends = (trendsQ.data && ((trendsQ.data as { months?: string[]; volumes?: number[] }).months?.length || (trendsQ.data as { volumes?: number[] }).volumes?.length))
+    ? (trendsQ.data as { months: string[]; volumes: number[] })
+    : { months: [] as string[], volumes: [] as number[] }
+  const summary = (summaryQ.data || {}) as Record<string, number>
 
-  useEffect(() => {
-    Promise.all([getMarketKpis(), getMarketTrends(), getInventorySummary()])
-      .then(([k, t, s]) => {
-        setKpis(k)
-        setTrends(t)
-        setSummary(s || {})
-      })
-      .catch(() => {})
-  }, [])
+  if (loading && !kpisQ.data && !trendsQ.data && !summaryQ.data) return <div className="card" style={{ padding: 24, textAlign: 'center' }}>Loading…</div>
+  if (backendOffline && !kpisQ.data && !trendsQ.data && !summaryQ.data) {
+    return (
+      <div className="card" style={{ padding: 32, textAlign: 'center', maxWidth: 520, margin: '24px auto' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)', marginBottom: 8 }}>Backend is not running</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Start the API to see live data. No mock or cached data is shown.</div>
+        <code style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 8, display: 'block', textAlign: 'left' }}>uvicorn api.main:app --reload --port 8000</code>
+      </div>
+    )
+  }
 
   const chartData = trends.months?.map((m, i) => ({ month: m?.slice(-2) === '01' ? m?.slice(0, 4) : m?.slice(5, 7) || m, tx: trends.volumes?.[i] ?? 0, price: 120000 + (i * 3000) })) ?? []
   const topModels = [
@@ -61,7 +74,7 @@ export default function MarketHub() {
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Monthly Transactions & Avg Price 2025</div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length ? chartData : [{ month: 'Jan', tx: 420, price: 138000 }]}>
+              <AreaChart data={chartData.length ? chartData : []}>
                 <defs>
                   <linearGradient id="txGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
                   <linearGradient id="prGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
@@ -109,8 +122,8 @@ export default function MarketHub() {
             <span style={{ fontSize: 13, fontWeight: 700 }}>🛢 Oil Price Signal</span>
             <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(34,197,94,0.15)', color: 'var(--green)', padding: '3px 10px', borderRadius: 6 }}>BUY</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--green)', marginBottom: 8 }}>${kpis.oil_price_usd ?? 88}/barrel</div>
-          <div style={{ fontSize: 11, color: 'var(--dim)', lineHeight: 1.6 }}>Above $85 threshold. Consumer confidence at {kpis.consumer_confidence_index ?? 78}. Market is HOT — recommend listing at full price.</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--green)', marginBottom: 8 }}>${kpis.oil_price_usd ?? '—'}/barrel</div>
+          <div style={{ fontSize: 11, color: 'var(--dim)', lineHeight: 1.6 }}>Above $85 threshold. Consumer confidence at {kpis.consumer_confidence_index ?? '—'}. Market is HOT — recommend listing at full price.</div>
         </div>
         <div className="card" style={{ border: '1px solid var(--border)', borderRadius: 13, padding: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>

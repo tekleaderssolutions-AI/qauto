@@ -8,13 +8,31 @@ export async function getMarketKpis() {
 
 export async function getMarketTrends() {
   const r = await fetch(`${BASE}/market/trends`)
-  if (!r.ok) throw new Error('Failed to fetch trends')
+  if (!r.ok) return { months: [], volumes: [] }
   return r.json()
 }
 
-export async function getMarketEvents() {
-  const r = await fetch(`${BASE}/market/events`)
-  if (!r.ok) throw new Error('Failed to fetch events')
+export async function getMarketAnalysis(limit = 20) {
+  const r = await fetch(`${BASE}/market/analysis?limit=${limit}`)
+  if (!r.ok) return { models: [], briefing: '' }
+  return r.json()
+}
+
+export async function getMarketTrendSeries(weeks = 5) {
+  const r = await fetch(`${BASE}/market/trend-series?weeks=${weeks}`)
+  if (!r.ok) return []
+  return r.json()
+}
+
+export async function getMarketSentiment() {
+  const r = await fetch(`${BASE}/market/sentiment`)
+  if (!r.ok) return []
+  return r.json()
+}
+
+export async function getMarketEvents(limit: number = 10) {
+  const r = await fetch(`${BASE}/market/events?limit=${limit}`)
+  if (!r.ok) return []
   return r.json()
 }
 

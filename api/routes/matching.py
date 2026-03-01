@@ -1,6 +1,7 @@
 """POST /api/match — Buyer-listing matching."""
 from fastapi import APIRouter, Query
 from api.schemas import MatchRequest
+from api.cache import cache
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -10,6 +11,7 @@ router = APIRouter(prefix="/api", tags=["matching"])
 
 
 @router.get("/match/ready-buyers")
+@cache(ttl=300, key_prefix="match")
 def ready_buyers(limit: int = Query(20, le=100)):
     return get_ready_buyers(limit)
 
@@ -23,5 +25,6 @@ def match_buyer(req: MatchRequest):
 
 
 @router.get("/match/dashboard")
+@cache(ttl=300, key_prefix="match")
 def match_dashboard(top_per_buyer: int = Query(3, le=10)):
     return get_matches_for_all_ready_buyers(top_per_buyer)

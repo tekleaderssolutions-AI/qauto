@@ -1,6 +1,7 @@
 """POST /api/price — Price prediction endpoint."""
 from fastapi import APIRouter, HTTPException
 from api.schemas import PriceRequest, PriceResponse
+from api.ml_models import ModelRegistry
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -25,7 +26,15 @@ def get_price(req: PriceRequest):
             "color_demand_score": req.color_demand_score or 70,
             "feature_demand_score": req.feature_demand_score or 80,
         }
-        price, confidence = predict(car)
+        model = ModelRegistry.get_price_model()
+        encoders = ModelRegistry.get_price_encoders()
+        feature_cols = ModelRegistry.get_price_feature_cols()
+        price, confidence = predict(
+            car,
+            model=model if model else None,
+            encoders=encoders if encoders else None,
+            feature_cols=feature_cols if feature_cols else None,
+        )
         spread = price * 0.05
         return PriceResponse(
             recommended_price_qar=price,
