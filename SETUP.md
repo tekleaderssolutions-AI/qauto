@@ -13,7 +13,7 @@ Set env (or use `.env`). **PostgreSQL is required** (no SQLite):
   If your password contains `@`, encode it as `%40` (e.g. `srikanthSs%401`).
 - Or use: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 - **REDIS_URL** (optional, recommended for production): `redis://localhost:6379`
-- **GROQ_API_KEY** (optional): from [console.groq.com](https://console.groq.com); AI Advisor uses Ollama if unset.
+- **GROQ_API_KEY**: from [console.groq.com](https://console.groq.com); required for AI Advisor chat.
 
 Run API:
 

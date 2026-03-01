@@ -79,6 +79,11 @@ export default function PricingTool() {
     price_range_high: number
     confidence_pct: number
     time_to_sell_days?: number
+    time_to_sell_fast_days?: number
+    time_to_sell_max_days?: number
+    similar_transactions_count?: number
+    market_context?: string[]
+    ai_advice?: string
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -95,6 +100,7 @@ export default function PricingTool() {
       model,
       trim,
       year,
+      mileage_km: mileage,
       color_exterior: color,
       body_type: bodyType,
       sunroof_flag: sunroof,
@@ -179,20 +185,44 @@ export default function PricingTool() {
           {error && <div style={{ color: 'var(--red)', marginBottom: 12, fontSize: 12 }}>{error}</div>}
           {result && (
             <>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Recommended price</div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>AI Recommendation</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--gold)', marginBottom: 8 }}>QAR {result.recommended_price_qar.toLocaleString()}</div>
-              <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 14 }}>Range: QAR {result.price_range_low.toLocaleString()} — QAR {result.price_range_high.toLocaleString()} · Confidence {result.confidence_pct}%</div>
+              <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 14 }}>
+                Range: QAR {result.price_range_low.toLocaleString()} – QAR {result.price_range_high.toLocaleString()}
+                {result.similar_transactions_count != null && result.similar_transactions_count > 0 && (
+                  <span style={{ color: 'var(--green)', marginLeft: 8 }}>· {result.confidence_pct.toFixed(0)}% Confidence ({result.similar_transactions_count} similar transactions)</span>
+                )}
+                {(result.similar_transactions_count == null || result.similar_transactions_count === 0) && (
+                  <span> · {result.confidence_pct.toFixed(0)}% Confidence</span>
+                )}
+              </div>
               <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Time to sell at this price</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Time to sell</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-                  <div>At recommended: ~{result.time_to_sell_days ?? 28} days</div>
-                  <div>+5%: ~45 days</div>
-                  <div>-5%: ~14 days</div>
-                  <div>-10%: ~7 days</div>
+                  <div>QAR {(result.recommended_price_qar).toLocaleString()}: ~{result.time_to_sell_days ?? 28} days</div>
+                  <div>Fast sale (-6%): ~{result.time_to_sell_fast_days ?? 14} days</div>
+                  <div>Max price (+6%): ~{result.time_to_sell_max_days ?? 48} days</div>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--dim)' }}>Market context: SUV segment strong. White/silver move 15% faster in Qatar.</div>
-              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gold)' }}>AI advice: List at recommended; reduce by 3–5% after 21 days if no leads.</div>
+              {(result.market_context?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Market context</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--dim)', lineHeight: 1.6 }}>
+                    {result.market_context!.map((item, i) => (
+                      <li key={i} style={{ color: 'var(--green)' }}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {result.ai_advice && (
+                <div style={{ marginTop: 10, padding: 12, background: 'rgba(245,158,11,0.08)', borderRadius: 10, borderLeft: '4px solid var(--gold)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>AI advice</div>
+                  <div style={{ fontSize: 13, color: 'var(--gold)', lineHeight: 1.5 }}>{result.ai_advice}</div>
+                </div>
+              )}
+              {!result.ai_advice && (result.market_context?.length ?? 0) === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--dim)' }}>Market context: SUV segment strong. White/silver move 15% faster in Qatar. Add GROQ_API_KEY for detailed AI advice.</div>
+              )}
             </>
           )}
           {!result && !error && <div style={{ color: 'var(--muted)', fontSize: 12 }}>Enter details and click Get AI Price.</div>}

@@ -55,6 +55,7 @@ export async function getPrice(body: {
   model: string
   trim?: string
   year: number
+  mileage_km?: number
   color_exterior?: string
   body_type?: string
   sunroof_flag?: boolean

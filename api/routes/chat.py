@@ -1,4 +1,4 @@
-"""POST /api/chat — LLM conversation (Ollama) with context from datasets."""
+"""POST /api/chat — LLM conversation (Groq) with context from datasets."""
 import sys
 from pathlib import Path
 from fastapi import APIRouter, Query
@@ -43,8 +43,8 @@ def get_db_context(limit_per_table: int = 50) -> str:
     return "\n".join(parts) if parts else "No data."
 
 
-def call_ollama(prompt: str, system: str) -> str:
-    """Call Groq if GROQ_API_KEY set, else Ollama; else rule-based reply."""
+def call_llm(prompt: str, system: str) -> str:
+    """Call Groq API. Set GROQ_API_KEY in .env for AI replies."""
     try:
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
@@ -54,20 +54,10 @@ def call_ollama(prompt: str, system: str) -> str:
             return out
     except Exception:
         pass
-    try:
-        if str(ROOT) not in sys.path:
-            sys.path.insert(0, str(ROOT))
-        from llm.ollama_client import generate
-        out = generate(prompt, system=system)
-        if out and "Ollama is not running" not in out:
-            return out
-    except Exception:
-        pass
     return (
-        "I'm QAUTO-AI. Based on the loaded data: Market health is in qatar_economic_indicators. "
-        "Inventory risk is in vehicle_inventory (risk_flag, risk_score). "
-        "For pricing use the /api/price endpoint. "
-        "For full AI answers, start Ollama: ollama serve && ollama run llama3.2"
+        "I'm QAUTO-AI. Set GROQ_API_KEY in .env for AI answers. "
+        "Market health is in qatar_economic_indicators. Inventory risk in vehicle_inventory. "
+        "For pricing use the /api/price endpoint."
     )
 
 
@@ -88,9 +78,9 @@ async def chat_stream(message: str = Query(..., min_length=1)):
     except Exception:
         extra = ""
     prompt = f"Context from datasets:\n{context}{extra}\n\nUser question: {message}\n\nAnswer briefly and with specific numbers if available."
-    from llm.ollama_stream import stream_ollama
+    from llm.groq_stream import stream_groq
     return StreamingResponse(
-        stream_ollama(prompt, system=system),
+        stream_groq(prompt, system=system),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -121,5 +111,5 @@ def chat(req: ChatRequest, request: Request):
         f"User question: {req.message}\n\n"
         "Answer briefly and with specific numbers if available."
     )
-    reply = call_ollama(prompt, system)
+    reply = call_llm(prompt, system)
     return ChatResponse(reply=reply, sources=["vehicle_inventory", "historical_sales", "qatar_economic_indicators"])

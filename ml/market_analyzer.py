@@ -15,8 +15,7 @@ sys.path.insert(0, str(ROOT))
 from db import get_engine  # type: ignore
 
 try:
-    # Local LLM client (qwen2.5:7b via Ollama)
-    from llm.ollama_client import generate as llm_generate  # type: ignore
+    from llm.groq_client import generate as llm_generate  # type: ignore
 except Exception:  # pragma: no cover - fallback if LLM not available
     llm_generate = None  # type: ignore
 
@@ -219,7 +218,7 @@ def generate_briefing(top_n: int = 5) -> str:
     if llm_generate is None:
         return base_text
 
-    # Enrich briefing using local LLM (qwen2.5:7b) for more narrative insight.
+    # Enrich briefing using Groq for more narrative insight.
     try:
         table_lines = []
         for i, s in enumerate(scores[:top_n]):

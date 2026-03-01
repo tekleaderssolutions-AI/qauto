@@ -43,4 +43,4 @@ So you only need to create a Redis service named **qatar-cache** and deploy; Ren
 |----------------|-----------------|--------|
 | `DATABASE_URL` | Render → qatar-api → Environment (or from linked DB) | Required. |
 | `REDIS_URL`    | Render → qatar-api → Environment (or from linked Redis) | Use Internal Redis URL. |
-| `GROQ_API_KEY` | Render → qatar-api → Environment (Secret) | Optional; Ollama used if unset. |
+| `GROQ_API_KEY` | Render → qatar-api → Environment (Secret) | Required for AI Advisor. |

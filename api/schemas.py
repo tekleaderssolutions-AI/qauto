@@ -8,6 +8,7 @@ class PriceRequest(BaseModel):
     model: str
     trim: Optional[str] = ""
     year: int
+    mileage_km: Optional[int] = None
     color_exterior: Optional[str] = ""
     body_type: Optional[str] = ""
     sunroof_flag: Optional[bool] = False
@@ -23,6 +24,11 @@ class PriceResponse(BaseModel):
     price_range_high: float
     confidence_pct: float
     time_to_sell_days: Optional[int] = None
+    time_to_sell_fast_days: Optional[int] = None  # at -6%
+    time_to_sell_max_days: Optional[int] = None   # at +6%
+    similar_transactions_count: Optional[int] = None
+    market_context: List[str] = []
+    ai_advice: Optional[str] = None
     source: str = "price_predictor"
 
 
