@@ -3,21 +3,50 @@ Qatar Used Car Market — AI Intelligence Platform API.
 FastAPI app: pricing, inventory, market, matching, chat.
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import sys
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from slowapi.middleware import SlowAPIMiddleware
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api.routes import pricing, inventory, market, matching, chat, competitors
 from api.ml_models import ModelRegistry
 from api.limiter import limiter
+from api.config import get_settings
+from api.logging_config import configure_logging
+from api.scheduler import create_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Configure logging, Sentry, models, scheduler at startup
+    settings = get_settings()
+    configure_logging(debug=settings.debug)
+
+    if settings.sentry_dsn:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            integrations=[FastApiIntegration()],
+            environment=settings.environment,
+            traces_sample_rate=0.1,
+        )
+
     ModelRegistry.load_all()
+
+    scheduler = create_scheduler()
+    scheduler.start()
+    app.state.scheduler = scheduler
+
     yield
+
+    scheduler.shutdown(wait=False)
 
 
 app = FastAPI(
@@ -34,14 +63,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(pricing.router)
 app.include_router(inventory.router)
 app.include_router(market.router)
 app.include_router(matching.router)
 app.include_router(chat.router)
-from slowapi.middleware import SlowAPIMiddleware
-app.add_middleware(SlowAPIMiddleware)
 app.include_router(competitors.router)
 
 
@@ -56,11 +84,12 @@ def health():
 
 
 @app.get("/metrics")
-def metrics():
-    """Basic metrics for monitoring (extend with Prometheus later)."""
-    import time
-    return {
-        "status": "ok",
-        "service": "qatar-api",
-        "cache_backend": "redis" if __import__("os").environ.get("REDIS_URL") else "memory",
-    }
+def metrics(request: Request) -> PlainTextResponse:
+    """Prometheus metrics endpoint."""
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+    data = generate_latest()
+    return PlainTextResponse(
+        content=data.decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST,
+    )

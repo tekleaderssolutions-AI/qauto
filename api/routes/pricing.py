@@ -1,7 +1,7 @@
 """POST /api/price — Price prediction endpoint with LLM-generated AI advice."""
 from __future__ import annotations
 from typing import List, Optional, Tuple
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from api.schemas import PriceRequest, PriceResponse
 from api.ml_models import ModelRegistry
 import sys
@@ -14,6 +14,7 @@ from ml.price_predictor import predict
 from llm.groq_client import generate
 from db import get_engine, is_postgres
 from sqlalchemy import text
+from api.limiter import limiter
 
 router = APIRouter(prefix="/api", tags=["pricing"])
 
@@ -161,7 +162,8 @@ Provide a concise recommendation: when to list, suggested price point, and what 
 
 
 @router.post("/price", response_model=PriceResponse)
-def get_price(req: PriceRequest):
+@limiter.limit("30/minute")
+def get_price(req: PriceRequest, request: Request):
     try:
         car = {
             "make": req.make,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { chat } from '../api'
 
 const QUICK_QUESTIONS = [
@@ -12,6 +12,15 @@ export default function AIAdvisor() {
   const [message, setMessage] = useState('')
   const [replies, setReplies] = useState<Array<{ user: string; bot: string; sources?: string[] }>>([])
   const [loading, setLoading] = useState(false)
+  const eventSourceRef = useRef<EventSource | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+    }
+  }, [])
 
   const send = (text?: string) => {
     const toSend = (text ?? message).trim()
@@ -19,22 +28,97 @@ export default function AIAdvisor() {
     setMessage('')
     setReplies((r) => [...r, { user: toSend, bot: '...', sources: undefined }])
     setLoading(true)
-    chat(toSend)
-      .then((res: { reply: string; sources?: string[] }) => {
-        setReplies((prev) => {
-          const next = [...prev]
-          next[next.length - 1] = { ...next[next.length - 1], bot: res.reply, sources: res.sources ?? ['INVENTORY', 'SALES', 'ECONOMICS', 'CALENDAR', 'TRENDS'] }
-          return next
-        })
+    // Prefer SSE streaming endpoint; fall back to non-streaming chat on error.
+    try {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+      const url = `/api/chat/stream?message=${encodeURIComponent(toSend)}`
+      const es = new EventSource(url)
+      eventSourceRef.current = es
+
+      setReplies((prev) => {
+        const next = [...prev]
+        next[next.length - 1] = { ...next[next.length - 1], bot: '', sources: ['INVENTORY', 'SALES', 'ECONOMICS', 'CALENDAR', 'TRENDS'] }
+        return next
       })
-      .catch((e) => {
-        setReplies((prev) => {
-          const next = [...prev]
-          next[next.length - 1] = { ...next[next.length - 1], bot: `Error: ${e.message}`, sources: [] }
-          return next
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { response?: string; error?: string }
+          if (data.error) {
+            setReplies((prev) => {
+              const next = [...prev]
+              next[next.length - 1] = { ...next[next.length - 1], bot: `Error: ${data.error}`, sources: [] }
+              return next
+            })
+            es.close()
+            setLoading(false)
+            return
+          }
+          if (data.response) {
+            setReplies((prev) => {
+              const next = [...prev]
+              const last = next[next.length - 1]
+              next[next.length - 1] = { ...last, bot: (last.bot ?? '') + data.response }
+              return next
+            })
+          }
+        } catch {
+          // Ignore malformed chunks
+        }
+      }
+
+      es.onerror = () => {
+        es.close()
+        // Fallback to non-streaming chat
+        chat(toSend)
+          .then((res: { reply: string; sources?: string[] }) => {
+            setReplies((prev) => {
+              const next = [...prev]
+              next[next.length - 1] = {
+                ...next[next.length - 1],
+                bot: res.reply,
+                sources: res.sources ?? ['INVENTORY', 'SALES', 'ECONOMICS', 'CALENDAR', 'TRENDS'],
+              }
+              return next
+            })
+          })
+          .catch((e) => {
+            setReplies((prev) => {
+              const next = [...prev]
+              next[next.length - 1] = { ...next[next.length - 1], bot: `Error: ${e.message}`, sources: [] }
+              return next
+            })
+          })
+          .finally(() => setLoading(false))
+      }
+
+      es.onopen = () => {
+        // Connection established; keep loading true until stream ends
+      }
+    } catch (e: any) {
+      chat(toSend)
+        .then((res: { reply: string; sources?: string[] }) => {
+          setReplies((prev) => {
+            const next = [...prev]
+            next[next.length - 1] = {
+              ...next[next.length - 1],
+              bot: res.reply,
+              sources: res.sources ?? ['INVENTORY', 'SALES', 'ECONOMICS', 'CALENDAR', 'TRENDS'],
+            }
+            return next
+          })
         })
-      })
-      .finally(() => setLoading(false))
+        .catch((err: any) => {
+          setReplies((prev) => {
+            const next = [...prev]
+            next[next.length - 1] = { ...next[next.length - 1], bot: `Error: ${err.message}`, sources: [] }
+            return next
+          })
+        })
+        .finally(() => setLoading(false))
+    }
   }
 
   return (

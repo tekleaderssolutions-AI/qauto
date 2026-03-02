@@ -53,10 +53,11 @@ npm run dev
 - App: http://localhost:3000  
 - Vite proxy forwards `/api` to the backend.
 
-### 5. AI chat (optional)
+### 5. AI chat (Groq, optional)
 
-- Install and run [Ollama](https://ollama.ai), then: `ollama run llama3.2`
-- Chat in the **AI Advisor** dashboard will use the local LLM with the platform system prompt.
+- Set `GROQ_API_KEY` in your `.env` (see `.env.example`).
+- The backend uses Groq's `llama-3.1-70b-versatile` model via the `/api/chat` and `/api/chat/stream` endpoints.
+- Chat in the **AI Advisor** dashboard will call the Groq API with the platform system prompt.
 
 ## Project structure
 
@@ -66,7 +67,7 @@ qauto-platform/
 ├── etl/                     # load_data.py, validate_data.py
 ├── ml/                      # price_predictor, risk_scorer, demand_forecaster, buyer_matcher
 ├── api/                     # FastAPI app + routes (pricing, inventory, market, matching, chat)
-├── llm/                     # system_prompt.txt, ollama_client.py
+├── llm/                     # system_prompt.txt, Groq clients (sync + streaming)
 ├── frontend/                # React + Vite, 6 dashboards
 ├── qauto.db                 # SQLite (created by ETL)
 └── requirements.txt
@@ -79,7 +80,7 @@ qauto-platform/
 3. **Pricing Tool** — Car form → recommended price (QAR) and range  
 4. **Market & Economics** — Oil, interest rate, confidence, upcoming events  
 5. **Buyer Matching** — Ready buyers and top inventory matches  
-6. **AI Advisor** — Chat with QAUTO-AI (Ollama + system prompt)
+6. **AI Advisor** — Chat with QAUTO-AI (Groq LLM + system prompt)
 
 ## API endpoints
 
@@ -94,7 +95,7 @@ qauto-platform/
 | GET | `/api/match/ready-buyers` | Customers with upgrade within 90 days |
 | POST | `/api/match` | Matches for a given customer_id |
 | GET | `/api/match/dashboard` | Ready buyers + top matches |
-| POST | `/api/chat` | LLM chat (Ollama) with dataset context |
+| POST | `/api/chat` | LLM chat (Groq) with dataset context |
 
 ## Datasets (10)
 

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     db_sslmode: str = ""
     redis_url: str = "redis://localhost:6379"
     groq_api_key: str = ""
+    sentry_dsn: str = ""
+    environment: str = "local"
     debug: bool = False
 
     class Config:
