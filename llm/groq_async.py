@@ -1,14 +1,14 @@
-"""Async Groq client for non-streaming chat completions."""
+"""Async OpenAI client for non-streaming chat completions."""
 import os
 from typing import Optional
 
-import httpx
+from openai import AsyncOpenAI
 
-GROQ_MODEL = "llama-3.1-70b-versatile"
+OPENAI_MODEL = "gpt-4.1-mini"
 
 
 async def generate_async(prompt: str, system: Optional[str] = None, max_tokens: int = 256) -> str:
-    key = os.environ.get("GROQ_API_KEY", "").strip()
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
         return ""
     messages = [{"role": "user", "content": prompt}]
@@ -18,22 +18,15 @@ async def generate_async(prompt: str, system: Optional[str] = None, max_tokens: 
             {"role": "user", "content": prompt},
         ]
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "stream": False,
-                },
-            )
-        if resp.status_code != 200:
-            return ""
-        data = resp.json()
-        content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-        return content.strip()
+        client = AsyncOpenAI(api_key=key)
+        resp = await client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        return content
     except Exception:
         return ""
 

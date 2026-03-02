@@ -3,7 +3,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { getMarketKpis, getMarketEvents, getMarketTrends, getMarketTrendSeries, getMarketSentiment, getMarketAnalysis } from '../api'
 
 const gridStyle = { stroke: 'rgba(255,255,255,0.04)' }
-const tooltipStyle = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }
+const tooltipStyle = { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, color: '#0f172a' }
 const COLORS = ['var(--gold)', 'var(--blue)', 'var(--green)', 'var(--purple)']
 
 export default function MarketTrends() {
@@ -55,16 +55,26 @@ export default function MarketTrends() {
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Google Trends — Top 4 models (index)</div>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Google Trends</div>
         <div style={{ height: 220 }}>
           {trendChartData.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No Google Trends pivot data. Load <code>google_trends__model_weekly_pivot</code> via ETL.</div>
           ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendChartData}>
+            <LineChart data={trendChartData} margin={{ left: 20, right: 12, top: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
-              <XAxis dataKey="week" stroke="#475569" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#475569" tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <XAxis
+                dataKey="week"
+                stroke="#475569"
+                tick={{ fontSize: 11 }}
+                label={{ value: 'Week', position: 'insideBottom', offset: -5, fill: '#475569', fontSize: 11 }}
+              />
+              <YAxis
+                stroke="#475569"
+                tick={{ fontSize: 11 }}
+                domain={[0, 100]}
+                label={{ value: 'Trend score', angle: -90, position: 'insideLeft', offset: 10, fill: '#475569', fontSize: 11 }}
+              />
               <Tooltip contentStyle={tooltipStyle} />
               <Line type="monotone" dataKey="lc300" stroke="#f59e0b" strokeWidth={2} name="Land Cruiser 300" dot={{ r: 3 }} />
               <Line type="monotone" dataKey="lx600" stroke="#3b82f6" strokeWidth={2} name="Lexus LX 600" dot={{ r: 3 }} />
@@ -78,13 +88,22 @@ export default function MarketTrends() {
 
       {monthlyChartData.length > 0 && (
         <div className="card" style={{ marginBottom: 18 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Monthly new car registrations (region)</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Monthly new car registrations</div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyChartData}>
+              <AreaChart data={monthlyChartData} margin={{ left: 20, right: 12, top: 10, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
-                <XAxis dataKey="month" stroke="#475569" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#475569" tick={{ fontSize: 11 }} />
+                <XAxis
+                  dataKey="month"
+                  stroke="#475569"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: 'Monthly', position: 'insideBottom', offset: -5, fill: '#475569', fontSize: 11 }}
+                />
+                <YAxis
+                  stroke="#475569"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: 'No. of cars', angle: -90, position: 'insideLeft', offset: 10, fill: '#475569', fontSize: 11 }}
+                />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Area type="monotone" dataKey="volume" stroke="var(--gold)" fill="rgba(245,158,11,0.2)" strokeWidth={2} name="Registrations" />
               </AreaChart>
@@ -127,10 +146,20 @@ export default function MarketTrends() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 13 }}>No sentiment data from API</div>
           ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sentimentData} margin={{ left: 8, right: 8 }}>
+            <BarChart data={sentimentData} margin={{ left: 40, right: 12, top: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} horizontal={false} />
-              <XAxis dataKey="brand" stroke="#475569" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#475569" domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <XAxis
+                dataKey="brand"
+                stroke="#475569"
+                tick={{ fontSize: 11 }}
+                label={{ value: 'Brand', position: 'insideBottom', offset: -5, fill: '#475569', fontSize: 11 }}
+              />
+              <YAxis
+                stroke="#475569"
+                domain={[0, 100]}
+                tick={{ fontSize: 11 }}
+                label={{ value: 'Sentiment score', angle: -90, position: 'insidecenter', offset: 1, fill: '#475569', fontSize: 11 }}
+              />
               <Tooltip contentStyle={tooltipStyle} />
               <Bar dataKey="score" radius={[4, 4, 0, 0]} fill="var(--gold)" name="Sentiment score" />
             </BarChart>

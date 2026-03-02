@@ -53,11 +53,11 @@ npm run dev
 - App: http://localhost:3000  
 - Vite proxy forwards `/api` to the backend.
 
-### 5. AI chat (Groq, optional)
+### 5. AI chat (OpenAI, optional)
 
-- Set `GROQ_API_KEY` in your `.env` (see `.env.example`).
-- The backend uses Groq's `llama-3.1-70b-versatile` model via the `/api/chat` and `/api/chat/stream` endpoints.
-- Chat in the **AI Advisor** dashboard will call the Groq API with the platform system prompt.
+- Set `OPENAI_API_KEY` in your `.env` (see `.env.example`).
+- The backend uses OpenAI's `gpt-4.1-mini` model via the `/api/chat` and `/api/chat/stream` endpoints.
+- Chat in the **AI Advisor** dashboard will call the OpenAI API with the platform system prompt.
 
 ## Project structure
 
@@ -95,7 +95,7 @@ qauto-platform/
 | GET | `/api/match/ready-buyers` | Customers with upgrade within 90 days |
 | POST | `/api/match` | Matches for a given customer_id |
 | GET | `/api/match/dashboard` | Ready buyers + top matches |
-| POST | `/api/chat` | LLM chat (Groq) with dataset context |
+| POST | `/api/chat` | LLM chat (OpenAI) with dataset context |
 
 ## Datasets (10)
 

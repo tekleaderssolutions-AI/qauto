@@ -1,11 +1,19 @@
 import { useState, useCallback } from 'react'
-import { getPrice } from '../api'
+import { useQuery } from '@tanstack/react-query'
+import { getPrice, getPricingOptions } from '../api'
 
 const COLORS = [
   { name: 'White', hex: '#f8fafc' }, { name: 'Pearl White', hex: '#f1f5f9' }, { name: 'Silver', hex: '#cbd5e1' },
   { name: 'Black', hex: '#1e293b' }, { name: 'Grey', hex: '#64748b' }, { name: 'Red', hex: '#dc2626' },
   { name: 'Blue', hex: '#2563eb' }, { name: 'Beige', hex: '#d4b896' }, { name: 'Brown', hex: '#92400e' },
 ]
+
+const DEFAULT_MAKES = ['Toyota', 'Nissan', 'Lexus', 'Kia', 'Hyundai', 'Mercedes-Benz', 'BMW']
+const DEFAULT_MODELS = ['Land Cruiser', 'Prado', 'Hilux', 'Corolla', 'Fortuner', 'Patrol', 'Sorento', 'Sportage']
+const DEFAULT_TRIMS = ['GXR', 'VX', 'VXR', 'SE', 'XSE', 'EX', 'LX']
+const BODY_TYPES = ['SUV', 'Sedan', 'Hatchback', 'Pickup', 'Coupe']
+const YEARS: number[] = []
+for (let y = 2015; y <= new Date().getFullYear() + 1; y++) YEARS.push(y)
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.trim().split(/\r?\n/)
@@ -63,6 +71,61 @@ Toyota,Land Cruiser,GXR,2022,White,45000,285000,No,Full dealer
 Nissan,Patrol,TI,2021,Grey,78000,320000,No,Full
 Toyota,Prado,VX,2020,Red,120000,195000,Yes,Independent`
 
+type AdviceSections = {
+  answer?: string
+  reasoning: string[]
+  data: string[]
+  action: string[]
+  raw?: string
+}
+
+function splitBullets(text: string): string[] {
+  const t = text.trim()
+  if (!t) return []
+  // Common patterns we see from the model
+  const parts = t
+    .replace(/\r/g, '')
+    .split(/\n+|(?:\s-\s)|(?:\s•\s)|(?:\s–\s)/g)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  // If the model didn’t use bullet separators, return as single paragraph
+  return parts.length ? parts : [t]
+}
+
+function parseAdviceSections(advice?: string | null): AdviceSections | null {
+  if (!advice) return null
+  const txt = advice.trim()
+  if (!txt) return null
+
+  const sections: AdviceSections = { reasoning: [], data: [], action: [], raw: txt }
+  const re = /\[(ANSWER|REASONING|DATA|ACTION)\]/g
+  const matches = Array.from(txt.matchAll(re))
+  if (matches.length === 0) {
+    sections.answer = txt
+    return sections
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const key = matches[i][1]
+    const start = (matches[i].index ?? 0) + matches[i][0].length
+    const end = i + 1 < matches.length ? (matches[i + 1].index ?? txt.length) : txt.length
+    const content = txt.slice(start, end).trim()
+    if (!content) continue
+    if (key === 'ANSWER') sections.answer = content.replace(/^:\s*/, '')
+    if (key === 'REASONING') sections.reasoning = splitBullets(content)
+    if (key === 'DATA') sections.data = splitBullets(content)
+    if (key === 'ACTION') sections.action = splitBullets(content)
+  }
+
+  return sections
+}
+
+declare global {
+  interface Window {
+    jspdf?: { jsPDF: any }
+  }
+}
+
 export default function PricingTool() {
   const [make, setMake] = useState('Toyota')
   const [model, setModel] = useState('Land Cruiser')
@@ -88,7 +151,8 @@ export default function PricingTool() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [csvResults, setCsvResults] = useState<Array<Record<string, string> & { _score?: number; _verdict?: string; _insights?: string[] }>>([])
+  type CsvAnalyzedRow = Record<string, string> & { _score?: number; _verdict?: string; _insights?: string[] }
+  const [csvResults, setCsvResults] = useState<CsvAnalyzedRow[]>([])
   const [csvFilter, setCsvFilter] = useState<string>('All')
   const [dragging, setDragging] = useState(false)
 
@@ -118,8 +182,8 @@ export default function PricingTool() {
       const rows = parseCSV(text)
       const analyzed = rows.map((row) => {
         const { score, verdict, insights } = analyzeCarRow(row)
-        return { ...row, _score: score, _verdict: verdict, _insights: insights }
-      })
+        return { ...(row as CsvAnalyzedRow), _score: score, _verdict: verdict, _insights: insights }
+      }) as CsvAnalyzedRow[]
       setCsvResults(analyzed)
     }
     r.readAsText(file)
@@ -132,6 +196,152 @@ export default function PricingTool() {
   const buy = csvResults.filter((r) => r._verdict === 'BUY')
   const totalProfitBanner = (strongBuy.length + buy.length) > 0
 
+  const { data: optionData } = useQuery({
+    queryKey: ['pricing-options'],
+    queryFn: getPricingOptions,
+  })
+
+  const mergeOptions = (apiValues: string[] | undefined, defaults: string[]) => {
+    const merged = new Set<string>([...defaults, ...(apiValues ?? [])])
+    return Array.from(merged).sort()
+  }
+
+  const makeOptions = mergeOptions(optionData?.makes, DEFAULT_MAKES)
+  const modelOptions = mergeOptions(optionData?.models, DEFAULT_MODELS)
+  const trimOptions = mergeOptions(optionData?.trims, DEFAULT_TRIMS)
+
+  const adviceSections = parseAdviceSections(result?.ai_advice)
+
+  const downloadPdf = () => {
+    if (!result) return
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('PDF generator not loaded. Please make sure you are online and try again.')
+      return
+    }
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+    const safe = (s: string) => s.replace(/[<>]/g, '')
+    const title = `QAUTO-AI Pricing Report`
+    const car = `${year} ${make} ${model} ${trim}`.trim()
+    const advice = adviceSections
+
+    const marginX = 40
+    let y = 50
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text(safe(title), marginX, y)
+    y += 18
+
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text(
+      doc.splitTextToSize(
+        `Vehicle: ${safe(car)} · Color: ${safe(color)} · Mileage: ${mileage.toLocaleString()} km · Body: ${safe(bodyType)}`,
+        520,
+      ),
+      marginX,
+      y,
+    )
+    y += 24
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Price summary', marginX, y)
+    y += 14
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Recommended price: QAR ${result.recommended_price_qar.toLocaleString()}`, marginX, y)
+    y += 14
+    doc.text(`Range: QAR ${result.price_range_low.toLocaleString()} – QAR ${result.price_range_high.toLocaleString()}`, marginX, y)
+    y += 14
+    doc.text(
+      `Confidence: ${result.confidence_pct.toFixed(0)}%${
+        result.similar_transactions_count ? ` (${result.similar_transactions_count} similar)` : ''
+      }`,
+      marginX,
+      y,
+    )
+    y += 18
+    doc.text(
+      `Time to sell: ~${result.time_to_sell_days ?? 28} days · Fast (-6%): ${
+        result.time_to_sell_fast_days ?? 14
+      } days · Max (+6%): ~${result.time_to_sell_max_days ?? 48} days`,
+      marginX,
+      y,
+    )
+    y += 24
+
+    if ((result.market_context ?? []).length) {
+      doc.setFont('helvetica', 'bold')
+      doc.text('Market context', marginX, y)
+      y += 14
+      doc.setFont('helvetica', 'normal')
+      for (const item of result.market_context ?? []) {
+        const lines = doc.splitTextToSize(`• ${safe(String(item))}`, 520)
+        doc.text(lines, marginX, y)
+        y += lines.length * 13 + 4
+      }
+      y += 6
+    }
+
+    if (advice) {
+      doc.setFont('helvetica', 'bold')
+      doc.text('AI advice', marginX, y)
+      y += 16
+      doc.setFont('helvetica', 'normal')
+
+      if (advice.answer) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Answer', marginX, y)
+        y += 13
+        doc.setFont('helvetica', 'normal')
+        const lines = doc.splitTextToSize(safe(advice.answer), 520)
+        doc.text(lines, marginX, y)
+        y += lines.length * 13 + 10
+      }
+
+      if (advice.reasoning.length) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Reasoning', marginX, y)
+        y += 13
+        doc.setFont('helvetica', 'normal')
+        for (const r of advice.reasoning) {
+          const lines = doc.splitTextToSize(`• ${safe(r)}`, 520)
+          doc.text(lines, marginX, y)
+          y += lines.length * 13 + 4
+        }
+        y += 6
+      }
+
+      if (advice.data.length) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Data used', marginX, y)
+        y += 13
+        doc.setFont('helvetica', 'normal')
+        for (const d of advice.data) {
+          const lines = doc.splitTextToSize(`• ${safe(d)}`, 520)
+          doc.text(lines, marginX, y)
+          y += lines.length * 13 + 4
+        }
+        y += 6
+      }
+
+      if (advice.action.length) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Action this week', marginX, y)
+        y += 13
+        doc.setFont('helvetica', 'normal')
+        for (const a of advice.action) {
+          const lines = doc.splitTextToSize(`• ${safe(a)}`, 520)
+          doc.text(lines, marginX, y)
+          y += lines.length * 13 + 4
+        }
+      }
+    }
+
+    const fileName = `qauto-pricing-${make}-${model}-${year}.pdf`.replace(/\s+/g, '-')
+    doc.save(fileName)
+  }
+
   return (
     <div>
       <div className="page-header" style={{ marginBottom: 20 }}>
@@ -143,9 +353,40 @@ export default function PricingTool() {
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 14 }}>Car details</div>
           <div style={{ display: 'grid', gap: 12 }}>
-            <label><span style={{ fontSize: 10, color: 'var(--muted)' }}>Make</span><br /><input value={make} onChange={(e) => setMake(e.target.value)} style={{ width: '100%' }} /></label>
-            <label><span style={{ fontSize: 10, color: 'var(--muted)' }}>Model / Trim</span><br /><div style={{ display: 'flex', gap: 8 }}><input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Model" style={{ flex: 1 }} /><input value={trim} onChange={(e) => setTrim(e.target.value)} placeholder="Trim" style={{ width: 80 }} /></div></label>
-            <label><span style={{ fontSize: 10, color: 'var(--muted)' }}>Year</span><br /><input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: '100%' }} /></label>
+            <label>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Make</span>
+              <br />
+              <select value={make} onChange={(e) => setMake(e.target.value)} style={{ width: '100%' }}>
+                {makeOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Model / Trim</span>
+              <br />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={model} onChange={(e) => setModel(e.target.value)} style={{ flex: 1 }}>
+                  {modelOptions.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <select value={trim} onChange={(e) => setTrim(e.target.value)} style={{ width: 100 }}>
+                  {trimOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </label>
+            <label>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Year</span>
+              <br />
+              <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: '100%' }}>
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
             <div>
               <span style={{ fontSize: 10, color: 'var(--muted)' }}>Color</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
@@ -172,7 +413,15 @@ export default function PricingTool() {
               <span style={{ fontSize: 10, color: 'var(--muted)' }}>Mileage (km) — {mileage.toLocaleString()}</span>
               <input type="range" min={0} max={300000} step={5000} value={mileage} onChange={(e) => setMileage(Number(e.target.value))} style={{ width: '100%', marginTop: 4 }} />
             </div>
-            <label><span style={{ fontSize: 10, color: 'var(--muted)' }}>Body type</span><br /><input value={bodyType} onChange={(e) => setBodyType(e.target.value)} style={{ width: '100%' }} /></label>
+            <label>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Body type</span>
+              <br />
+              <select value={bodyType} onChange={(e) => setBodyType(e.target.value)} style={{ width: '100%' }}>
+                {BODY_TYPES.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={sunroof} onChange={(e) => setSunroof(e.target.checked)} /> Sunroof</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={ventilated} onChange={(e) => setVentilated(e.target.checked)} /> Ventilated seats</label>
           </div>
@@ -216,10 +465,64 @@ export default function PricingTool() {
               )}
               {result.ai_advice && (
                 <div style={{ marginTop: 10, padding: 12, background: 'rgba(245,158,11,0.08)', borderRadius: 10, borderLeft: '4px solid var(--gold)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>AI advice</div>
-                  <div style={{ fontSize: 13, color: 'var(--gold)', lineHeight: 1.5 }}>{result.ai_advice}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>AI advice</div>
+                  {adviceSections?.answer && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Answer</div>
+                      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>{adviceSections.answer}</div>
+                    </div>
+                  )}
+                  {(adviceSections?.reasoning?.length ?? 0) > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Reasoning</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
+                        {adviceSections!.reasoning.map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(adviceSections?.data?.length ?? 0) > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Data</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
+                        {adviceSections!.data.map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(adviceSections?.action?.length ?? 0) > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Action</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
+                        {adviceSections!.action.map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {!adviceSections?.answer &&
+                    !(adviceSections?.reasoning?.length || adviceSections?.data?.length || adviceSections?.action?.length) && (
+                      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{result.ai_advice}</div>
+                    )}
                 </div>
               )}
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-gold"
+                  onClick={downloadPdf}
+                  style={{
+                    width: 'auto',
+                    minWidth: 200,
+                    padding: '10px 22px',
+                    borderRadius: 999,
+                  }}
+                >
+                  Save as PDF
+                </button>
+              </div>
               {!result.ai_advice && (result.market_context?.length ?? 0) === 0 && (
                 <div style={{ fontSize: 11, color: 'var(--dim)' }}>Market context: SUV segment strong. White/silver move 15% faster in Qatar. Add GROQ_API_KEY for detailed AI advice.</div>
               )}

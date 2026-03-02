@@ -15,6 +15,7 @@ from llm.groq_client import generate
 from db import get_engine, is_postgres
 from sqlalchemy import text
 from api.limiter import limiter
+from api.cache import cache
 
 router = APIRouter(prefix="/api", tags=["pricing"])
 
@@ -22,6 +23,28 @@ router = APIRouter(prefix="/api", tags=["pricing"])
 def _run(engine, stmt, params=None):
     with engine.connect() as conn:
         return conn.execute(text(stmt), params or {}).fetchall()
+
+
+@router.get("/pricing/options")
+@cache(ttl=600, key_prefix="pricing_options")
+def pricing_options():
+    """Return distinct makes, models, and trims for dropdowns."""
+    try:
+        engine = get_engine()
+    except Exception:
+        return {"makes": [], "models": [], "trims": []}
+    makes: list[str] = []
+    models: list[str] = []
+    trims: list[str] = []
+    with engine.connect() as conn:
+        makes = [r[0] for r in conn.execute(text("SELECT DISTINCT make FROM vehicle_inventory ORDER BY make")).fetchall()]
+        models = [r[0] for r in conn.execute(text("SELECT DISTINCT model FROM vehicle_inventory ORDER BY model")).fetchall()]
+        trims = [r[0] for r in conn.execute(text("SELECT DISTINCT trim FROM vehicle_inventory ORDER BY trim")).fetchall()]
+    return {
+        "makes": [m for m in makes if m],
+        "models": [m for m in models if m],
+        "trims": [t for t in trims if t],
+    }
 
 
 def _fetch_market_context(make: str, model: str, color: str, body_type: str) -> Tuple[dict, List[str], int]:
@@ -136,29 +159,38 @@ def _generate_ai_advice(
     time_fast: int,
     time_max: int,
 ) -> str:
-    """Call Groq to generate detailed AI pricing advice."""
-    ctx_str = "\n".join(f"  • {c}" for c in market_context) if market_context else "  • General market conditions"
+    """Call LLM to generate detailed, structured AI pricing advice."""
+    ctx_str = "\n".join(f"- {c}" for c in market_context) if market_context else "- General market conditions in Qatar used car market."
     mileage_str = f"{mileage_km:,} km" if mileage_km is not None else "unknown mileage"
     body_type_str = body_type or "SUV"
 
-    prompt = f"""You are a Qatar used car pricing expert. Give a SHORT, actionable recommendation (2–4 sentences max) for listing this car.
+    prompt = f"""You are QAUTO-AI, a senior Qatar used car pricing expert. Explain your reasoning clearly and concisely.
 
 Car: {year} {make} {model}, {color}, {body_type_str}, {mileage_str}
 Recommended price: QAR {int(recommended_price):,}
 Range: QAR {int(price_low):,} – QAR {int(price_high):,}
 Confidence: {confidence:.0f}% based on {similar_count} similar transactions
 
-Market context:
-{ctx_str}
-
 Time to sell estimates:
 - At recommended: ~{time_rec} days
 - At -6% (fast sale): ~{time_fast} days
 - At +6% (max price): ~{time_max} days
 
-Provide a concise recommendation: when to list, suggested price point, and what to expect (e.g. offer timing). Be specific. No preamble."""
+Market context bullets:
+{ctx_str}
 
-    return generate(prompt, max_tokens=256)
+Structure the answer exactly in this markdown-style format:
+[ANSWER] One or two sentences with the key recommendation (price point and urgency).
+[REASONING] 2–4 short bullet points explaining why (refer to confidence %, days to sell, color, seasonality, and competitor pricing).
+[DATA] Bullet points citing the exact key numbers you used (prices, days, counts, oil price, confidence index etc.).
+[ACTION] 1–2 bullets telling the dealer what to do this week (list now / wait / adjust price, how much, and any merchandising tips).
+
+Be concrete, use QAR numbers, and keep the whole response under 150 words."""
+
+    # Use system prompt so pricing advice matches QAUTO-AI behaviour everywhere.
+    system_path = ROOT / "llm" / "system_prompt.txt"
+    system = system_path.read_text(encoding="utf-8", errors="replace") if system_path.exists() else None
+    return generate(prompt, system=system, max_tokens=400)
 
 
 @router.post("/price", response_model=PriceResponse)

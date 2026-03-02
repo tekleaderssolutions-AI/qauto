@@ -121,14 +121,36 @@ export default function AIAdvisor() {
     }
   }
 
+  const hasHistory = replies.length > 0
+
   return (
-    <div>
-      <div className="page-header" style={{ marginBottom: 18 }}>
+    <div
+      style={{
+        minHeight: 'calc(100vh - 100px)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div className="page-header" style={{ marginBottom: hasHistory ? 12 : 32 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>AI Advisor Chat</div>
         <div style={{ fontSize: 12, color: 'var(--muted)' }}>Ask QAUTO-AI about market, pricing, inventory, or buyers · Data from all datasets</div>
       </div>
 
-      <div className="card" style={{ maxWidth: 640 }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: hasHistory ? 'flex-start' : 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          className="card"
+          style={{
+            width: '100%',
+            maxWidth: 900,
+          }}
+        >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {QUICK_QUESTIONS.map((q) => (
             <button key={q} className="pill" onClick={() => send(q)} disabled={loading} style={{ whiteSpace: 'nowrap' }}>
@@ -137,7 +159,7 @@ export default function AIAdvisor() {
           ))}
         </div>
 
-        <div style={{ maxHeight: 380, overflow: 'auto', marginBottom: 16 }}>
+        <div style={{ maxHeight: hasHistory ? 420 : 260, overflow: 'auto', marginBottom: 16 }}>
           {replies.length === 0 && (
             <div style={{ color: 'var(--muted)', fontSize: 12 }}>Click a question above or type below. Try: &quot;What should I buy this month?&quot;</div>
           )}
@@ -153,13 +175,6 @@ export default function AIAdvisor() {
                 <div style={{ maxWidth: '85%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px', fontSize: 13 }}>
                   <div style={{ fontSize: 10, color: 'var(--dim)', marginBottom: 4 }}>QAUTO-AI</div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{r.bot}</div>
-                  {r.sources && r.sources.length > 0 && (
-                    <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {r.sources.map((s) => (
-                        <span key={s} style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>[{s}]</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -171,10 +186,18 @@ export default function AIAdvisor() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder="اكتب سؤالك هنا أو باللغة الإنجليزية..."
+            placeholder="Type your question here about pricing, risk or market trends…"
             style={{ flex: 1 }}
           />
-          <button className="btn-gold" onClick={() => send()} disabled={loading} style={{ padding: '10px 20px' }}>Send</button>
+          <button
+            className="btn-gold"
+            onClick={() => send()}
+            disabled={loading}
+            style={{ width: 'auto', minWidth: 110, padding: '10px 20px', whiteSpace: 'nowrap' }}
+          >
+            Send
+          </button>
+        </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,8 @@ from api.limiter import limiter
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
-from db import get_engine, get_async_engine
+from db import get_engine
+from api.database import get_async_engine
 from api.schemas import ChatRequest, ChatResponse
 from ml.market_analyzer import compute_scores, generate_briefing
 
@@ -57,18 +58,18 @@ async def get_db_context(limit_per_table: int = 50) -> str:
 
 
 def call_llm(prompt: str, system: str) -> str:
-    """Call Groq API. Set GROQ_API_KEY in .env for AI replies."""
+    """Call OpenAI API. Set OPENAI_API_KEY in .env for AI replies."""
     try:
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
-        from llm.groq_client import generate as groq_gen
-        out = groq_gen(prompt, system=system, max_tokens=256)
+        from llm.groq_client import generate as llm_generate
+        out = llm_generate(prompt, system=system, max_tokens=256)
         if out:
             return out
     except Exception:
         pass
     return (
-        "I'm QAUTO-AI. Set GROQ_API_KEY in .env for AI answers. "
+        "I'm QAUTO-AI. Set OPENAI_API_KEY in .env for AI answers. "
         "Market health is in qatar_economic_indicators. Inventory risk in vehicle_inventory. "
         "For pricing use the /api/price endpoint."
     )
@@ -78,8 +79,13 @@ def call_llm(prompt: str, system: str) -> str:
 async def chat_stream(message: str = Query(..., min_length=1)):
     """SSE streaming endpoint — use GET /api/chat/stream?message=... for EventSource."""
     system_path = LLM_DIR / "system_prompt.txt"
-    system = system_path.read_text(encoding="utf-8", errors="replace") if system_path.exists() else "You are QAUTO-AI, Qatar used car market advisor."
-    context = await get_db_context(limit_per_table=30)
+    system = (
+        system_path.read_text(encoding="utf-8", errors="replace")
+        if system_path.exists()
+        else "You are QAUTO-AI, Qatar used car market advisor."
+    )
+    # Build rich context so LLM can answer any data-related question.
+    context = await get_db_context(limit_per_table=60)
     try:
         top_models = compute_scores(limit=5)
         if top_models:
@@ -90,7 +96,15 @@ async def chat_stream(message: str = Query(..., min_length=1)):
             extra = ""
     except Exception:
         extra = ""
-    prompt = f"Context from datasets:\n{context}{extra}\n\nUser question: {message}\n\nAnswer briefly and with specific numbers if available."
+    prompt = (
+        "You are answering questions for a Qatar used car dealership.\n"
+        "Use ONLY the structured data and summaries below when making specific claims.\n"
+        "You can answer any question about inventory, pricing, risk, buyers, macro indicators, and competitor pricing.\n\n"
+        f"Context from datasets:\n{context}{extra}\n\n"
+        f"User question: {message}\n\n"
+        "Give a clear, well-structured answer with specific QAR values, counts, and timeframes when available. "
+        "If something is not in the data, say so briefly and then give a general best-practice recommendation."
+    )
     from llm.groq_stream import stream_groq
     return StreamingResponse(
         stream_groq(prompt, system=system),
@@ -103,8 +117,12 @@ async def chat_stream(message: str = Query(..., min_length=1)):
 @limiter.limit("10/minute")
 async def chat(req: ChatRequest, request: Request):
     system_path = LLM_DIR / "system_prompt.txt"
-    system = system_path.read_text(encoding="utf-8", errors="replace") if system_path.exists() else "You are QAUTO-AI, Qatar used car market advisor."
-    context = await get_db_context(limit_per_table=30)
+    system = (
+        system_path.read_text(encoding="utf-8", errors="replace")
+        if system_path.exists()
+        else "You are QAUTO-AI, Qatar used car market advisor."
+    )
+    context = await get_db_context(limit_per_table=60)
     # Enrich context with top market demand signals if available.
     try:
         top_models = compute_scores(limit=5)
@@ -120,16 +138,20 @@ async def chat(req: ChatRequest, request: Request):
     except Exception:
         extra = ""
     prompt = (
+        "You are answering questions for a Qatar used car dealership.\n"
+        "Use ONLY the structured data and summaries below when making specific claims.\n"
+        "You can answer any question about inventory, pricing, risk, buyers, macro indicators, and competitor pricing.\n\n"
         f"Context from datasets:\n{context}{extra}\n\n"
         f"User question: {req.message}\n\n"
-        "Answer briefly and with specific numbers if available."
+        "Provide a concise but complete answer with specific QAR values, percentages, counts, and timeframes where the data supports it. "
+        "If the data does not contain an exact answer, say so explicitly and then offer a short, best-practice recommendation."
     )
     from llm.groq_async import generate_async
 
-    reply = await generate_async(prompt, system=system, max_tokens=256)
+    reply = await generate_async(prompt, system=system, max_tokens=400)
     if not reply:
         reply = (
-            "I'm QAUTO-AI. Set GROQ_API_KEY in .env for AI answers. "
+            "I'm QAUTO-AI. Set OPENAI_API_KEY in .env for AI answers. "
             "Market health is in qatar_economic_indicators. Inventory risk in vehicle_inventory. "
             "For pricing use the /api/price endpoint."
         )

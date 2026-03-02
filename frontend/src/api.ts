@@ -109,3 +109,9 @@ export async function getCompetitors(params: { model_filter?: string; search?: s
   if (!r.ok) throw new Error('Failed to fetch competitors')
   return r.json()
 }
+
+export async function getPricingOptions() {
+  const r = await fetch(`${BASE}/pricing/options`)
+  if (!r.ok) throw new Error('Failed to fetch pricing options')
+  return r.json() as Promise<{ makes: string[]; models: string[]; trims: string[] }>
+}
