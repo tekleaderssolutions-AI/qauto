@@ -10,6 +10,7 @@ import functools
 import hashlib
 import logging
 import os
+import ssl
 import time
 from typing import Any, Callable
 
@@ -49,10 +50,10 @@ def _get_redis():
         _redis_client = redis_lib.from_url(
             url,
             decode_responses=True,
-            socket_connect_timeout=3,
-            socket_timeout=3,
-            # Required for Upstash rediss:// (TLS with self-signed cert)
-            ssl_cert_reqs=None,
+            socket_connect_timeout=10,   # increased for cross-region latency
+            socket_timeout=10,
+            # ssl.CERT_NONE = skip cert verification for Upstash self-signed TLS
+            ssl_cert_reqs=ssl.CERT_NONE,
         )
         # Verify connection on startup
         _redis_client.ping()
