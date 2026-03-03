@@ -69,7 +69,7 @@ export default function App() {
           <div>
             <div style={{ fontWeight: 900, fontSize: 15, color: '#ffffff', letterSpacing: '0.05em' }}>QAUTO-AI</div>
             <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Qatar Used Car Intelligence
+              Used Car Intelligence
             </div>
           </div>
         </div>

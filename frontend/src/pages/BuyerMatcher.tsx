@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query'
 import { getMatchDashboard } from '../api'
 
@@ -29,7 +30,7 @@ export default function BuyerMatcher() {
     <div>
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>Buyer & Seller Matching Engine</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Customers with next upgrade &lt; 90 days · Top matches from inventory</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Customers With Next Upgrade &lt; 90 Days · Top Matches From Inventory</div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

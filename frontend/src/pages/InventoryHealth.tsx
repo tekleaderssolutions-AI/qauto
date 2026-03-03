@@ -149,7 +149,7 @@ export default function InventoryHealth() {
     <div>
       <div className="page-header" style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>Inventory Health Monitor</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Risk-scored stock with recommended actions</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Risk Scored Stock With Recommended Actions</div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>

@@ -70,7 +70,7 @@ export default function CompetitorPrices() {
     <div>
       <div className="page-header" style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>Competitor Price Matching</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Compare our prices vs market listings · Adjust to win</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Compare Our Prices vs Market Listings · Adjust To Win</div>
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>

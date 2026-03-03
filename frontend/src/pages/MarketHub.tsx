@@ -57,7 +57,7 @@ export default function MarketHub() {
 
   const kpiList = [
     { label: 'Market Health', value: kpis.market_health_score != null ? `${kpis.market_health_score}/100` : '—', sub: 'Strong ↑', color: 'var(--green)', icon: '🏥' },
-    { label: 'Avg Days (SUV)', value: kpis.avg_days_to_sell_suv != null ? `${kpis.avg_days_to_sell_suv} days` : '—', sub: '−3 vs last month', color: 'var(--blue)', icon: '⏱' },
+    { label: 'Avg Days (SUV)', value: kpis.avg_days_to_sell_suv != null ? `${kpis.avg_days_to_sell_suv} days` : '—', sub: 'last 3 months', color: 'var(--blue)', icon: '⏱' },
     { label: 'Oil Price', value: kpis.oil_price_usd != null ? `$${kpis.oil_price_usd}/bbl` : '—', sub: 'HOT signal', color: 'var(--gold)', icon: '🛢' },
     { label: 'Active Buyers', value: kpis.active_buyers_60d ?? '—', sub: 'Ready < 60 days', color: 'var(--purple)', icon: '👥' },
     { label: 'Critical Stock', value: kpis.critical_inventory_count ?? summary?.critical ?? 0, sub: 'Need action now', color: 'var(--red)', icon: '🚨' },
@@ -68,7 +68,7 @@ export default function MarketHub() {
     <div>
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>Market Intelligence Hub</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Real-time Qatar used car market overview</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Real Time Used Car Market Overview</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 18 }}>
