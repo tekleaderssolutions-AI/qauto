@@ -8,7 +8,8 @@ import sys
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi.middleware import SlowAPIMiddleware
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -73,6 +74,16 @@ app.include_router(market.router)
 app.include_router(matching.router)
 app.include_router(chat.router)
 app.include_router(competitors.router)
+
+# Serve React frontend (built by: cd frontend && npm install && npm run build)
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=_frontend_dist / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        """Catch-all: serve React index.html for any non-API route."""
+        return FileResponse(_frontend_dist / "index.html")
 
 
 @app.get("/")
