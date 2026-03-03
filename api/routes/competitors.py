@@ -40,17 +40,34 @@ def get_competitors(
         if comp.empty:
             return {"items": [], "platform_summary": {}}
         inv = pd.read_sql(
-            "SELECT make, model, AVG(list_price_qar) as our_avg FROM vehicle_inventory WHERE status = 'available' GROUP BY make, model",
+            "SELECT make, model, year, AVG(list_price_qar) as our_avg FROM vehicle_inventory WHERE status = 'available' GROUP BY make, model, year",
             engine
         )
-        comp["our_price"] = comp.apply(
-            lambda r: inv[(inv["make"] == r["make"]) & (inv["model"] == r["model"])]["our_avg"].iloc[0]
-            if len(inv[(inv["make"] == r["make"]) & (inv["model"] == r["model"])]) else None,
-            axis=1
-        )
-        comp["our_price"] = comp["our_price"].fillna(comp["listed_price_qar"])
+        def _our_price(r):
+            # Match by make + model + year first (most specific)
+            match = inv[(inv["make"] == r["make"]) & (inv["model"] == r["model"]) & (inv["year"] == r["year"])]
+            if not match.empty:
+                return match["our_avg"].iloc[0]
+            # Fallback: match by make + model (any year)
+            match2 = inv[(inv["make"] == r["make"]) & (inv["model"] == r["model"])]
+            if not match2.empty:
+                return match2["our_avg"].mean()
+            return r["listed_price_qar"]
+        comp["our_price"] = comp.apply(_our_price, axis=1)
         comp["gap"] = comp["our_price"] - comp["listed_price_qar"]
-        comp["gap_pct"] = (comp["gap"] / comp["listed_price_qar"] * 100).round(0)
+        comp["gap_pct"] = (comp["gap"] / comp["listed_price_qar"] * 100).round(1)
+        def _ai_advice(gap_pct: float) -> str:
+            if gap_pct > 25:
+                return f"AI: We are {gap_pct:.0f}% above market — consider repricing"
+            elif gap_pct > 10:
+                return f"AI: Drop {gap_pct/2:.0f}–{gap_pct:.0f}% to match competitors"
+            elif gap_pct > 0:
+                return "AI: Hold price or offer small discount"
+            elif gap_pct > -10:
+                return "AI: We are competitive — maintain pricing"
+            else:
+                return f"AI: We are {abs(gap_pct):.0f}% below market — opportunity to raise price"
+        comp["ai_advice"] = comp["gap_pct"].apply(_ai_advice)
         if model_filter:
             comp = comp[comp["model"].astype(str).str.contains(model_filter, case=False, na=False)]
         if search:
