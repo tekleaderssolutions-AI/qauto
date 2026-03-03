@@ -13,6 +13,7 @@ type Item = {
   our_price: number
   gap: number
   gap_pct?: number
+  ai_advice?: string
   platform: string
   location?: string
   days_listed: number
@@ -137,7 +138,7 @@ export default function CompetitorPrices() {
                 </div>
                 <div style={{ marginTop: 8, fontSize: 11, color: 'var(--dim)' }}>{row.days_listed ?? 0} days listed · {row.location || 'Qatar'}</div>
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--gold)' }}>
-                  {row.gap > 15000 ? 'AI: Drop 5–8% to match' : row.gap > 0 ? 'AI: Hold or small discount' : 'AI: We are competitive'}
+                  {row.ai_advice ?? (row.gap > 15000 ? 'AI: Drop 5–8% to match' : row.gap > 0 ? 'AI: Hold or small discount' : 'AI: We are competitive')}
                 </div>
               </div>
             ))}
