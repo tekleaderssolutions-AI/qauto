@@ -26,7 +26,7 @@ def _run(engine, stmt, params=None):
 
 
 @router.get("/pricing/options")
-@cache(ttl=600, key_prefix="pricing_options")
+@cache(ttl=3600, key_prefix="pricing_options")
 def pricing_options():
     """Return distinct makes, models, and trims for dropdowns."""
     try:

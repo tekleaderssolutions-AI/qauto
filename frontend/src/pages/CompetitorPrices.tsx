@@ -51,6 +51,8 @@ export default function CompetitorPrices() {
       sort,
       limit: 100,
     }),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
   const items = (data as { items?: Item[] } | undefined)?.items ?? []
   const platformSummary = (data as { platform_summary?: Record<string, { count: number; avg_price: number }> } | undefined)?.platform_summary ?? {}

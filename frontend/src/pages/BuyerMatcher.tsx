@@ -21,6 +21,8 @@ export default function BuyerMatcher() {
   const { data: rows, isLoading: loading } = useQuery<BuyerRow[]>({
     queryKey: ['match', 'dashboard', 3],
     queryFn: () => getMatchDashboard(3),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
   const rowList = rows ?? []
 

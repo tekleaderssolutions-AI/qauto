@@ -45,13 +45,13 @@ Be simple and readable, avoid jargon, and keep the total under 45 words."""
 
 
 @router.get("/inventory/summary")
-@cache(ttl=300, key_prefix="inventory")
+@cache(ttl=3600, key_prefix="inventory")
 def inventory_summary():
     return get_risk_summary()
 
 
 @router.get("/inventory")
-@cache(ttl=300, key_prefix="inventory_actions_v2")
+@cache(ttl=3600, key_prefix="inventory_actions_v2")
 def get_inventory(
     risk_flag: Optional[str] = None,
     body_type: Optional[str] = None,

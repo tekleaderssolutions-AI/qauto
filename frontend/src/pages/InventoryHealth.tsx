@@ -122,10 +122,17 @@ function actionLabel(row: Item): string {
 
 export default function InventoryHealth() {
   const [filter, setFilter] = useState<string | null>(null)
-  const summaryQ = useQuery({ queryKey: ['inventory', 'summary'], queryFn: getInventorySummary })
+  const summaryQ = useQuery({
+    queryKey: ['inventory', 'summary'],
+    queryFn: getInventorySummary,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  })
   const listQ = useQuery({
     queryKey: ['inventory', 'list', filter ?? 'all'],
     queryFn: () => getInventory({ risk_flag: filter ?? undefined, limit: 15 }),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
   const summary = (summaryQ.data || {}) as Record<string, number>
   const items = (listQ.data as { items?: Item[]; total?: number } | undefined)?.items ?? []

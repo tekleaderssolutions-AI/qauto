@@ -21,7 +21,7 @@ def _run(engine, stmt, params=None):
 
 
 @router.get("/market/kpis")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def market_kpis():
     out = {}
     try:
@@ -45,11 +45,15 @@ def market_kpis():
     except Exception:
         out["critical_inventory_count"] = 0
     try:
-        if is_postgres():
-            r = _run(engine, "SELECT COUNT(*) FROM customers WHERE next_upgrade_prediction <= CURRENT_DATE + INTERVAL '60 days' AND next_upgrade_prediction >= CURRENT_DATE")
+        df = pd.read_sql("SELECT * FROM qatar_economic__monthly_data ORDER BY 1 DESC LIMIT 1", engine)
+        if not df.empty:
+            reg_col = next((c for c in df.columns if "new" in c.lower() and "reg" in c.lower()), None)
+            if reg_col is not None and pd.notna(df[reg_col].iloc[0]):
+                out["active_buyers_60d"] = int(float(df[reg_col].iloc[0]))
+            else:
+                out["active_buyers_60d"] = 0
         else:
-            r = _run(engine, "SELECT COUNT(*) FROM customers WHERE next_upgrade_prediction <= date('now','+60 days') AND next_upgrade_prediction >= date('now')")
-        out["active_buyers_60d"] = r[0][0]
+            out["active_buyers_60d"] = 0
     except Exception:
         out["active_buyers_60d"] = 0
     try:
@@ -76,8 +80,33 @@ def market_kpis():
     return out
 
 
+@router.get("/market/oil-series")
+@cache(ttl=3600, key_prefix="market")
+def market_oil_series(limit: int = Query(24, le=60)):
+    """Monthly oil price time series for chart (from qatar_economic__monthly_data)."""
+    try:
+        engine = get_engine()
+        df = pd.read_sql("SELECT * FROM qatar_economic__monthly_data ORDER BY 1 ASC", engine)
+        if df.empty:
+            return {"months": [], "oil_price": []}
+        date_col = next((c for c in df.columns if "date" in c.lower() and "year" not in c.lower()), df.columns[0])
+        oil_col = next((c for c in df.columns if "oil" in c.lower() and "price" in c.lower()), None)
+        if oil_col is None:
+            return {"months": [], "oil_price": []}
+        df["_month"] = pd.to_datetime(df[date_col], errors="coerce").dt.strftime("%Y-%m")
+        df = df.dropna(subset=["_month"])
+        df = df.dropna(subset=[oil_col])
+        df = df.tail(limit)
+        return {
+            "months": df["_month"].tolist(),
+            "oil_price": df[oil_col].astype(float).round(2).tolist(),
+        }
+    except Exception:
+        return {"months": [], "oil_price": []}
+
+
 @router.get("/market/trends")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def market_trends():
     """Monthly new car registrations from qatar_economic__monthly_data (column L)."""
     try:
@@ -102,7 +131,7 @@ def market_trends():
 
 
 @router.get("/market/events")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def upcoming_events(limit: int = 10):
     """Upcoming events: project recurring events (same month/day) to next occurrence on or after today."""
     try:
@@ -139,7 +168,7 @@ def upcoming_events(limit: int = 10):
 
 
 @router.get("/market/trend-series")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def market_trend_series(weeks: int = 5):
     """Weekly trend index for top 4 models (chart data)."""
     try:
@@ -149,7 +178,7 @@ def market_trend_series(weeks: int = 5):
 
 
 @router.get("/market/sentiment")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def market_sentiment():
     """Brand-level sentiment for charting."""
     try:
@@ -159,7 +188,7 @@ def market_sentiment():
 
 
 @router.get("/market/analysis")
-@cache(ttl=300, key_prefix="market")
+@cache(ttl=3600, key_prefix="market")
 def market_analysis(limit: int = Query(20, le=100)):
     """
     Aggregate market, Google Trends, and social data into model-level demand scores.

@@ -1,13 +1,13 @@
 import { useQueries } from '@tanstack/react-query'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
-import { getMarketKpis, getMarketEvents, getMarketTrends, getMarketTrendSeries, getMarketSentiment, getMarketAnalysis } from '../api'
+import { getMarketKpis, getMarketEvents, getMarketTrends, getMarketTrendSeries, getMarketSentiment, getMarketAnalysis, getMarketOilSeries } from '../api'
 
 const gridStyle = { stroke: 'rgba(255,255,255,0.04)' }
 const tooltipStyle = { background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, color: '#0f172a' }
 const COLORS = ['var(--gold)', 'var(--blue)', 'var(--green)', 'var(--purple)']
 
 export default function MarketTrends() {
-  const [kpisQ, eventsQ, trendsQ, trendSeriesQ, sentimentQ, analysisQ] = useQueries({
+  const [kpisQ, eventsQ, trendsQ, trendSeriesQ, sentimentQ, analysisQ, oilSeriesQ] = useQueries({
     queries: [
       { queryKey: ['market', 'kpis'], queryFn: getMarketKpis },
       { queryKey: ['market', 'events', 10], queryFn: () => getMarketEvents(10) },
@@ -15,6 +15,7 @@ export default function MarketTrends() {
       { queryKey: ['market', 'trend-series'], queryFn: () => getMarketTrendSeries(5) },
       { queryKey: ['market', 'sentiment'], queryFn: getMarketSentiment },
       { queryKey: ['market', 'analysis'], queryFn: () => getMarketAnalysis(10) },
+      { queryKey: ['market', 'oil-series'], queryFn: () => getMarketOilSeries(24) },
     ],
   })
   const loading = kpisQ.isLoading && !kpisQ.data
@@ -33,6 +34,10 @@ export default function MarketTrends() {
   }))
   const monthlyChartData = monthlyTrends.months?.length
     ? monthlyTrends.months.map((m, i) => ({ month: m || '', volume: monthlyTrends.volumes?.[i] ?? 0 }))
+    : []
+  const oilSeriesData = ((oilSeriesQ.data ?? { months: [], oil_price: [] }) as { months: string[]; oil_price: number[] })
+  const oilChartData = oilSeriesData.months?.length
+    ? oilSeriesData.months.map((m, i) => ({ month: m || '', oil: oilSeriesData.oil_price?.[i] ?? 0 }))
     : []
 
   if (loading) return <div className="card">Loading…</div>
@@ -125,8 +130,32 @@ export default function MarketTrends() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Oil Price Tracker</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: (kpis.oil_price_usd ?? 0) > 85 ? 'var(--green)' : 'var(--gold)' }}>${kpis.oil_price_usd ?? '—'}/bbl</div>
-          <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 4 }}>{kpis.oil_price_usd != null ? ((kpis.oil_price_usd > 85) ? 'Above $85 — fleet demand signal' : 'Below peak') : 'No data'}</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: (kpis.oil_price_usd ?? 0) > 85 ? 'var(--green)' : 'var(--gold)', marginBottom: 8 }}>${kpis.oil_price_usd ?? '—'}/bbl</div>
+          <div style={{ fontSize: 11, color: 'var(--dim)', marginBottom: 12 }}>{kpis.oil_price_usd != null ? ((kpis.oil_price_usd > 85) ? 'Above $85 — fleet demand signal' : 'Below peak') : 'No data'}</div>
+          {oilChartData.length > 0 ? (
+            <div style={{ height: 140 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={oilChartData} margin={{ left: 8, right: 8, top: 4, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="#475569"
+                    tick={{ fontSize: 10 }}
+                    label={{ value: 'Month', position: 'insideBottom', offset: -14, fill: '#475569', fontSize: 10 }}
+                  />
+                  <YAxis
+                    stroke="#475569"
+                    tick={{ fontSize: 10 }}
+                    label={{ value: 'Price ($/bbl)', angle: -90, position: 'insidecenter', offset: 8, fill: '#475569', fontSize: 10 }}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`$${Number(v).toFixed(2)}/bbl`, 'Oil price']} />
+                  <Line type="monotone" dataKey="oil" stroke="var(--gold)" strokeWidth={2} dot={{ r: 2 }} name="Oil price" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>No oil price history. Load qatar_economic__monthly_data via ETL.</div>
+          )}
         </div>
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Upcoming Events</div>

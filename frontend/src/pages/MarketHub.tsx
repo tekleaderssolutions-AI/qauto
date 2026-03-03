@@ -59,7 +59,7 @@ export default function MarketHub() {
     { label: 'Market Health', value: kpis.market_health_score != null ? `${kpis.market_health_score}/100` : '—', sub: 'Strong ↑', color: 'var(--green)', icon: '🏥' },
     { label: 'Avg Days (SUV)', value: kpis.avg_days_to_sell_suv != null ? `${kpis.avg_days_to_sell_suv} days` : '—', sub: 'last 3 months', color: 'var(--blue)', icon: '⏱' },
     { label: 'Oil Price', value: kpis.oil_price_usd != null ? `$${kpis.oil_price_usd}/bbl` : '—', sub: 'HOT signal', color: 'var(--gold)', icon: '🛢' },
-    { label: 'Active Buyers', value: kpis.active_buyers_60d ?? '—', sub: 'Ready < 60 days', color: 'var(--purple)', icon: '👥' },
+    { label: 'Active Buyers', value: 3933, sub: 'New Car Reg (last month)', color: 'var(--purple)', icon: '👥' },
     { label: 'Critical Stock', value: kpis.critical_inventory_count ?? summary?.critical ?? 0, sub: 'Need action now', color: 'var(--red)', icon: '🚨' },
     { label: 'LC300 Trend', value: '↑ 94', sub: 'Rising 4 weeks', color: 'var(--teal)', icon: '📈' },
   ]

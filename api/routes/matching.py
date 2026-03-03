@@ -11,12 +11,13 @@ router = APIRouter(prefix="/api", tags=["matching"])
 
 
 @router.get("/match/ready-buyers")
-@cache(ttl=300, key_prefix="match")
+@cache(ttl=3600, key_prefix="match")
 def ready_buyers(limit: int = Query(20, le=100)):
     return get_ready_buyers(limit)
 
 
 @router.post("/match")
+@cache(ttl=3600, key_prefix="match_buyer")
 def match_buyer(req: MatchRequest):
     if req.customer_id:
         matches = get_matches_for_buyer(req.customer_id, top_n=req.top_n)
@@ -25,6 +26,6 @@ def match_buyer(req: MatchRequest):
 
 
 @router.get("/match/dashboard")
-@cache(ttl=300, key_prefix="match")
+@cache(ttl=3600, key_prefix="match")
 def match_dashboard(top_per_buyer: int = Query(3, le=10)):
     return get_matches_for_all_ready_buyers(top_per_buyer)

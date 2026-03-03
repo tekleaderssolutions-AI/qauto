@@ -133,7 +133,7 @@ export default function AIAdvisor() {
     >
       <div className="page-header" style={{ marginBottom: hasHistory ? 12 : 32 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--gold)', marginBottom: 3 }}>AI Advisor Chat</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Ask QAUTO-AI about market, pricing, inventory, or buyers · Data from all datasets</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Ask QAUTO-AI About Market, Pricing, Inventory, or Buyers · Data From All Datasets</div>
       </div>
 
       <div

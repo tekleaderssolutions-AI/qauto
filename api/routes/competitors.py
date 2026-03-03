@@ -23,7 +23,7 @@ def _py(v: Any):
 
 
 @router.get("/competitors")
-@cache(ttl=300, key_prefix="competitors")
+@cache(ttl=3600, key_prefix="competitors")
 def get_competitors(
     model_filter: Optional[str] = Query(None, description="Filter by model name"),
     search: Optional[str] = Query(None, description="Search model or platform"),

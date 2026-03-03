@@ -36,6 +36,12 @@ export async function getMarketEvents(limit: number = 10) {
   return r.json()
 }
 
+export async function getMarketOilSeries(limit = 24) {
+  const r = await fetch(`${BASE}/market/oil-series?limit=${limit}`)
+  if (!r.ok) return { months: [], oil_price: [] }
+  return r.json() as Promise<{ months: string[]; oil_price: number[] }>
+}
+
 export async function getInventorySummary() {
   const r = await fetch(`${BASE}/inventory/summary`)
   if (!r.ok) throw new Error('Failed to fetch inventory summary')
