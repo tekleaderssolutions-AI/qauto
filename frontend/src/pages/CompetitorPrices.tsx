@@ -45,18 +45,20 @@ export default function CompetitorPrices() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('gap')
   const { data, isLoading: loading } = useQuery({
-    queryKey: ['competitors', modelFilter, search, sort],
+    queryKey: ['competitors', 'v3', modelFilter, search, sort],
     queryFn: () => getCompetitors({
-      model_filter: modelFilter === 'All' ? undefined : modelFilter,
+      make_filter: modelFilter === 'Lexus' ? 'Lexus' : undefined,
+      model_filter: modelFilter === 'All' || modelFilter === 'Lexus' ? undefined : modelFilter,
       search: search || undefined,
       sort,
       limit: 100,
     }),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 5 * 1000,
+    gcTime: 30 * 1000,
   })
   const items = (data as { items?: Item[] } | undefined)?.items ?? []
   const platformSummary = (data as { platform_summary?: Record<string, { count: number; avg_price: number }> } | undefined)?.platform_summary ?? {}
+  const apiError = (data as { error?: string } | undefined)?.error
 
   const priceAlert = items.some((i) => i.gap > 15000)
   const staleCount = items.filter((i) => (i.days_listed ?? 0) >= 45).length
@@ -121,6 +123,12 @@ export default function CompetitorPrices() {
         <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>
       ) : (
         <>
+          {apiError && (
+            <div className="card" style={{ border: '1px solid rgba(239,68,68,0.35)', background: 'rgba(239,68,68,0.08)', marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 800, marginBottom: 4 }}>API error</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{apiError}</div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, marginBottom: 18 }}>
             {items.map((row, idx) => (
               <div key={idx} className="card" style={{ borderLeft: `4px solid ${platformColor(row.platform)}` }}>

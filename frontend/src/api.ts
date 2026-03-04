@@ -108,7 +108,7 @@ export async function chat(message: string) {
   return r.json()
 }
 
-export async function getCompetitors(params: { model_filter?: string; search?: string; sort?: string; limit?: number } = {}) {
+export async function getCompetitors(params: { make_filter?: string; model_filter?: string; search?: string; sort?: string; limit?: number } = {}) {
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => v != null && q.set(k, String(v)))
   const r = await fetch(`${BASE}/competitors?${q}`)

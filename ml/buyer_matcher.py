@@ -136,8 +136,10 @@ def get_matches_for_buyer(customer_id: int, top_n: int = 5):
     if cust.empty:
         return []
     cust = cust.iloc[0].to_dict()
+    # Limit inventory to top 500 most recent to keep response fast
+    inv_sample = inv_df.head(500)
     scores = []
-    for _, row in inv_df.iterrows():
+    for _, row in inv_sample.iterrows():
         v = row.to_dict()
         sc = match_score(cust, v)
         scores.append(_jsonify_dict({
@@ -157,14 +159,25 @@ def get_ready_buyers(limit: int = 20):
 
 
 def get_matches_for_all_ready_buyers(top_per_buyer: int = 3):
-    """For dashboard: each ready buyer with top N inventory matches."""
+    """
+    For dashboard: each ready buyer with top N inventory matches.
+    Limits to 15 buyers × 300 vehicles = 4,500 iterations (was 50 × all rows).
+    """
     cust_df, inv_df = load_customers(upgrade_within_days=90)
+    # Cap inventory to 300 most recent available vehicles to keep it fast
+    inv_sample = inv_df.head(300)
     out = []
-    for _, c in cust_df.head(50).iterrows():
+    for _, c in cust_df.head(15).iterrows():
         matches = []
-        for _, v in inv_df.iterrows():
+        for _, v in inv_sample.iterrows():
             sc = match_score(c.to_dict(), v.to_dict())
-            matches.append(_jsonify_dict({"vehicle_id": v["vehicle_id"], "make": v["make"], "model": v["model"], "list_price_qar": v["list_price_qar"], "match_score": sc}))
+            matches.append(_jsonify_dict({
+                "vehicle_id": v["vehicle_id"],
+                "make": v["make"],
+                "model": v["model"],
+                "list_price_qar": v["list_price_qar"],
+                "match_score": sc,
+            }))
         matches.sort(key=lambda x: -x["match_score"])
         out.append({"customer": _jsonify_dict(c.to_dict()), "top_matches": matches[:top_per_buyer]})
     return out
@@ -173,3 +186,4 @@ def get_matches_for_all_ready_buyers(top_per_buyer: int = 3):
 if __name__ == "__main__":
     print(get_ready_buyers(5))
     print(get_matches_for_buyer(1001, 3))
+

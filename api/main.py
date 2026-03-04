@@ -75,6 +75,15 @@ app.include_router(matching.router)
 app.include_router(chat.router)
 app.include_router(competitors.router)
 
+
+@app.post("/api/cache/clear")
+def clear_cache():
+    """Flush all caches (Upstash, redis-py, in-memory) and return fresh data."""
+    from api.cache import clear_all_cache
+    cleared = clear_all_cache()
+    return {"status": "ok", "cleared": cleared}
+
+
 # Serve React frontend (built by: cd frontend && npm install && npm run build)
 _frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if _frontend_dist.exists():
