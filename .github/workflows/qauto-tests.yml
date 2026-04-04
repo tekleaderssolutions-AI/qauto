@@ -1,0 +1,33 @@
+name: QAuto E2E Test Suite
+
+on:
+  repository_dispatch:
+    types: [qauto-execute-suite]
+
+jobs:
+  test:
+    name: Run Playwright Tests
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        
+    - name: Install dependencies
+      run: npm install -D @playwright/test
+      
+    - name: Install Playwright Browsers (Full Matrix)
+      run: npx playwright install --with-deps chromium firefox webkit
+      
+    - name: Run Playwright tests
+      run: npx playwright test
+      
+    - name: Report Status to QAuto
+      if: always()
+      run: |
+        curl -X POST -H "Content-Type: application/json" \
+        -d '{"status": "${{ job.status }}"}' \
+        https://api.qauto.ai/api/v1/projects/1/execution/webhook
